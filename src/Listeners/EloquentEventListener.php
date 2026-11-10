@@ -37,32 +37,27 @@ class EloquentEventListener
             'event' => $event->value,
             'model' => $model::class,
             'id' => $model->getKey(),
-            'changes' => $this->resolveChanges($event, $model),
-            'source' => $this->resolveSource(),
         ];
+
+        $changes = $this->resolveChanges($event, $model);
+
+        if ($changes !== []) {
+            $context['changes'] = $changes;
+        }
+
+        $context['source'] = $this->resolveSource();
 
         Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /**
-     * Suppress generic events also emitted by restore and force-delete.
+     * Suppress the generic deleted event also emitted by force-delete.
      */
     private function shouldSkipEvent(ModelEvent $event, Model $model): bool
     {
-        if ($event === ModelEvent::Deleted && method_exists($model, 'isForceDeleting')) {
-            return $model->isForceDeleting();
-        }
-
-        if ($event !== ModelEvent::Updated || ! method_exists($model, 'getDeletedAtColumn')) {
-            return false;
-        }
-
-        $deleted_at = $model->getDeletedAtColumn();
-
-        // shortcut: a cleared deleted_at is treated as restore, revisit if manual undeletes need update logs.
-        return array_key_exists($deleted_at, $model->getChanges())
-            && ($model->getPrevious()[$deleted_at] ?? null) !== null
-            && $model->getAttribute($deleted_at) === null;
+        return $event === ModelEvent::Deleted
+            && method_exists($model, 'isForceDeleting')
+            && $model->isForceDeleting();
     }
 
     /**
@@ -73,7 +68,7 @@ class EloquentEventListener
         return match ($event) {
             ModelEvent::Created => $this->diff([], $model->getAttributes()),
             ModelEvent::Updated, ModelEvent::Restored => $this->diff($model->getPrevious(), $model->getChanges()),
-            ModelEvent::Deleted, ModelEvent::ForceDeleted => $this->diff($model->getAttributes(), []),
+            ModelEvent::Deleted, ModelEvent::ForceDeleted => [],
         };
     }
 

@@ -83,6 +83,7 @@ class EloquentEventListenerTest extends TestCase
         $context = $this->readLogContext();
 
         $this->assertSame('updated', $context['event']);
+        $this->assertSame(['name'], array_keys($context['changes']));
         $this->assertSame([
             'old' => 'Before',
             'new' => 'After',
@@ -102,10 +103,7 @@ class EloquentEventListenerTest extends TestCase
         $context = $this->readLogContext();
 
         $this->assertSame('deleted', $context['event']);
-        $this->assertSame([
-            'old' => 'Before',
-            'new' => null,
-        ], $context['changes']['name']);
+        $this->assertArrayNotHasKey('changes', $context);
     }
 
     public function test_restored_event(): void
@@ -121,7 +119,7 @@ class EloquentEventListenerTest extends TestCase
 
         $context = $this->readLogContext();
 
-        $this->assertSame(1, substr_count(file_get_contents($this->log_path), '"event":'));
+        $this->assertSame(2, substr_count(file_get_contents($this->log_path), '"event":'));
         $this->assertSame('restored', $context['event']);
         $this->assertNotNull($context['changes']['deleted_at']['old']);
         $this->assertNull($context['changes']['deleted_at']['new']);
@@ -142,10 +140,26 @@ class EloquentEventListenerTest extends TestCase
 
         $this->assertSame(1, substr_count(file_get_contents($this->log_path), '"event":'));
         $this->assertSame('forceDeleted', $context['event']);
-        $this->assertSame([
-            'old' => 'Before',
-            'new' => null,
-        ], $context['changes']['name']);
+        $this->assertArrayNotHasKey('changes', $context);
+    }
+
+    public function test_manually_clearing_deleted_at_is_logged_as_an_update(): void
+    {
+        $model = TraceTestModel::create([
+            'name' => 'Before',
+        ]);
+        $model->delete();
+
+        TraceLog::watch();
+
+        $model->deleted_at = null;
+        $model->save();
+
+        $context = $this->readLogContext();
+
+        $this->assertSame('updated', $context['event']);
+        $this->assertNotNull($context['changes']['deleted_at']['old']);
+        $this->assertNull($context['changes']['deleted_at']['new']);
     }
 
     public function test_unwatched_model_is_not_logged(): void

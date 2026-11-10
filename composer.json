@@ -1,6 +1,6 @@
 {
     "name": "faisallbhr/laravel-tracelog",
-    "description": "Trace Eloquent model changes with contextual debug logs.",
+    "description": "Trace Eloquent model changes without writing debug logs one by one.",
     "type": "library",
     "license": "MIT",
     "keywords": [

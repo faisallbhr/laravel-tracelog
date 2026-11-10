@@ -1,6 +1,6 @@
 # Laravel TraceLog
 
-Trace Eloquent model changes without adding `Log::debug()` calls one by one.
+Trace Eloquent model changes without writing debug logs one by one.
 
 Debugging model changes often means logging a few attributes, repeating the
 request, and starting over when one was missed. TraceLog captures the relevant
@@ -120,6 +120,13 @@ An update produces a structured entry like this:
 TraceLog records model attribute values and currently provides no redaction or
 attribute exclusion. Keep it as a development dependency and avoid tracing
 sensitive data in shared or production logs.
+
+Mass updates performed through an Eloquent query do not dispatch model events
+and therefore are not traced:
+
+```php
+Order::query()->update(['status' => 'paid']);
+```
 
 ## License
 
