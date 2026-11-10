@@ -14,8 +14,11 @@ triggered the event.
 
 ## Requirements
 
-- PHP 8.5 or later
-- Laravel 13
+- PHP 8.2 or later (Laravel 13 requires PHP 8.3 or later)
+- Laravel 11, 12, or 13
+
+Laravel 11 is tested for legacy compatibility but no longer receives upstream
+security fixes. Prefer Laravel 12 or later for production.
 
 ## Installation
 

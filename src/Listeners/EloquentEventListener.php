@@ -8,15 +8,21 @@ use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\TraceLogManager;
 use TraceLog\WatchConfiguration;
+use WeakMap;
 
 /**
  * Writes watched Eloquent events to Laravel's default log channel.
  */
 class EloquentEventListener
 {
+    /** @var WeakMap<Model, array<string, mixed>> */
+    private WeakMap $previous;
+
     public function __construct(
         private readonly TraceLogManager $manager
-    ) {}
+    ) {
+        $this->previous = new WeakMap;
+    }
 
     /**
      * Log a model event when the model is watched or uses the Traceable trait.
@@ -30,6 +36,7 @@ class EloquentEventListener
         }
 
         $configuration ??= new WatchConfiguration;
+        $this->capturePrevious($event, $model);
 
         if (! $configuration->includes($event)) {
             return;
@@ -63,9 +70,38 @@ class EloquentEventListener
     {
         return match ($event) {
             ModelEvent::Created => $this->diff([], $model->getAttributes()),
-            ModelEvent::Updated, ModelEvent::Restored => $this->diff($model->getPrevious(), $model->getChanges()),
+            ModelEvent::Updated, ModelEvent::Restored => $this->diff($this->previous($event, $model), $model->getChanges()),
             ModelEvent::Deleted, ModelEvent::ForceDeleted => [],
         };
+    }
+
+    /**
+     * Preserve old values that Laravel 11 discards before firing restored.
+     */
+    private function capturePrevious(ModelEvent $event, Model $model): void
+    {
+        if ($event === ModelEvent::Updated && ! method_exists($model, 'getPrevious')) {
+            $this->previous[$model] = array_intersect_key($model->getRawOriginal(), $model->getChanges());
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function previous(ModelEvent $event, Model $model): array
+    {
+        if (method_exists($model, 'getPrevious')) {
+            return $model->getPrevious();
+        }
+
+        $previous = $this->previous[$model]
+            ?? array_intersect_key($model->getRawOriginal(), $model->getChanges());
+
+        if ($event === ModelEvent::Restored) {
+            unset($this->previous[$model]);
+        }
+
+        return $previous;
     }
 
     /**

@@ -15,8 +15,27 @@ permissions:
 
 jobs:
   tests:
-    name: PHPUnit (PHP 8.5)
+    name: PHPUnit (Laravel ${{ matrix.laravel }}, PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - laravel: 11
+            php: '8.2'
+            testbench: '^9.0'
+            phpunit: '^11.5'
+            security_option: '--no-security-blocking'
+          - laravel: 12
+            php: '8.2'
+            testbench: '^10.0'
+            phpunit: '^11.5'
+            security_option: ''
+          - laravel: 13
+            php: '8.3'
+            testbench: '^11.0'
+            phpunit: '^12.0'
+            security_option: ''
 
     steps:
       - name: Checkout repository
@@ -25,19 +44,22 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php }}
           extensions: mbstring, dom, xml, sqlite3, pdo_sqlite
           coverage: none
           tools: composer:v2
 
+      - name: Select Laravel test dependencies
+        run: composer require --dev "orchestra/testbench:${{ matrix.testbench }}" "phpunit/phpunit:${{ matrix.phpunit }}" --no-update --no-interaction
+
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
+        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies ${{ matrix.security_option }}
 
       - name: Run PHPUnit
         run: composer test
 
   code-style:
-    name: Laravel Pint (PHP 8.5)
+    name: Laravel Pint
     runs-on: ubuntu-latest
 
     steps:
