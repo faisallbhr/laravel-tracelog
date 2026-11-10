@@ -2,7 +2,7 @@
 
 All notable changes to Laravel TraceLog are documented in this file.
 
-## [Unreleased]
+## [1.0.0-rc.1] - 2026-11-10
 
 ### Fixed
 
@@ -49,7 +49,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v0.5.0...v1.0.0-rc.1
 [0.5.0]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.5.0
 [0.4.0]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.4.0
 [0.3.1]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.3.1
