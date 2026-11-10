@@ -68,7 +68,61 @@ $order = Order::findOrFail(123);
 TraceLog::watch($order);
 ```
 
-An unsaved model cannot be watched because it does not have a record key yet.
+When watching a specific model instance, it must already be persisted and have
+a record key.
+
+### Filter attributes
+
+Use `only()` to allow selected attributes and `except()` to remove attributes.
+When combined, `except()` takes precedence:
+
+```php
+TraceLog::watch(Order::class)
+    ->only(['status', 'total', 'updated_at'])
+    ->except(['updated_at']);
+```
+
+An empty `only([])` allows no attributes, while an empty `except([])` excludes
+nothing. An `updated` event is not logged when filtering removes all of its
+changes.
+
+### Filter events
+
+Select events using the existing `ModelEvent` enum:
+
+```php
+use TraceLog\Enums\ModelEvent;
+
+TraceLog::watch(Order::class)->events([
+    ModelEvent::Updated,
+    ModelEvent::Deleted,
+]);
+```
+
+All supported events are enabled by default. Passing `events([])` disables
+logging for that watch.
+
+### Protect sensitive attributes
+
+TraceLog always redacts `password`, `password_confirmation`, `remember_token`,
+`api_token`, `access_token`, `refresh_token`, `secret`, `secret_key`, and
+`private_key`. Matching is case-insensitive, including when an attribute is
+explicitly selected with `only()`.
+
+Add application-specific sensitive attributes with `sensitive()`:
+
+```php
+TraceLog::watch(User::class)
+    ->sensitive(['pin', 'security_answer']);
+```
+
+Both old and new values are written as `[REDACTED]`.
+
+### Multiple watches
+
+When multiple watches match a model, the most specific configuration wins:
+record, model class, then global. Registering the same scope again replaces its
+previous filtering configuration.
 
 ### Always trace a model
 
@@ -121,9 +175,9 @@ An update produces a structured entry like this:
 
 ## Important
 
-TraceLog records model attribute values and currently provides no redaction or
-attribute exclusion. Keep it as a development dependency and avoid tracing
-sensitive data in shared or production logs.
+Keep TraceLog as a development dependency. Default redaction protects common
+credential names, but application-specific sensitive attributes must be added
+with `sensitive()`.
 
 Mass updates performed through an Eloquent query do not dispatch model events
 and therefore are not traced:

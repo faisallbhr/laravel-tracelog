@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\TraceLogManager;
+use TraceLog\WatchConfiguration;
 
 /**
  * Writes watched Eloquent events to Laravel's default log channel.
@@ -22,10 +23,15 @@ class EloquentEventListener
      */
     public function handle(ModelEvent $event, Model $model): void
     {
-        if (
-            ! $this->manager->isWatching($model)
-            && ! in_array(Traceable::class, class_uses_recursive($model), true)
-        ) {
+        $configuration = $this->manager->configurationFor($model);
+
+        if ($configuration === null && ! in_array(Traceable::class, class_uses_recursive($model), true)) {
+            return;
+        }
+
+        $configuration ??= new WatchConfiguration;
+
+        if (! $configuration->includes($event)) {
             return;
         }
 
@@ -35,7 +41,11 @@ class EloquentEventListener
             'id' => $model->getKey(),
         ];
 
-        $changes = $this->resolveChanges($event, $model);
+        $changes = $configuration->filter($this->resolveChanges($event, $model));
+
+        if ($event === ModelEvent::Updated && $changes === []) {
+            return;
+        }
 
         if ($changes !== []) {
             $context['changes'] = $changes;

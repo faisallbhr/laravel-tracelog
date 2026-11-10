@@ -10,12 +10,12 @@ use InvalidArgumentException;
  */
 class TraceLogManager
 {
-    private bool $watch_all = false;
+    private ?WatchConfiguration $watch_all = null;
 
-    /** @var array<class-string<Model>, true> */
+    /** @var array<class-string<Model>, WatchConfiguration> */
     private array $watched_classes = [];
 
-    /** @var array<class-string<Model>, array<string, true>> */
+    /** @var array<class-string<Model>, array<string, WatchConfiguration>> */
     private array $watched_records = [];
 
     /**
@@ -27,31 +27,27 @@ class TraceLogManager
      *
      * @throws InvalidArgumentException When the class is not an Eloquent model or the model is unsaved.
      */
-    public function watch(Model|string|null $model = null): void
+    public function watch(Model|string|null $model = null): WatchConfiguration
     {
         if ($model === null) {
-            $this->watch_all = true;
+            return $this->watch_all = new WatchConfiguration;
+        }
 
-            return;
+        if (is_string($model) && ! is_a($model, Model::class, true)) {
+            throw new InvalidArgumentException('Expected an Eloquent model class name, got: '.$model);
         }
 
         if (is_string($model)) {
-            if (! is_a($model, Model::class, true)) {
-                throw new InvalidArgumentException('Expected an Eloquent model class name, got: '.$model);
-            }
-
-            $this->watched_classes[$model] = true;
-
-            return;
+            return $this->watched_classes[$model] = new WatchConfiguration;
         }
 
         if ($model->getKey() === null) {
             throw new InvalidArgumentException('Cannot watch an unsaved Eloquent model.');
         }
 
-        $this->watched_records[$model::class][
+        return $this->watched_records[$model::class][
             (string) $model->getKey()
-        ] = true;
+        ] = new WatchConfiguration;
     }
 
     /**
@@ -59,17 +55,17 @@ class TraceLogManager
      */
     public function isWatching(Model $model): bool
     {
-        if ($this->watch_all) {
-            return true;
-        }
+        return $this->configurationFor($model) !== null;
+    }
 
-        if (isset($this->watched_classes[$model::class])) {
-            return true;
-        }
-
-        return isset($this->watched_records[$model::class][
-            (string) $model->getKey()
-        ]);
+    /**
+     * Resolve the most specific watch configuration for a model.
+     */
+    public function configurationFor(Model $model): ?WatchConfiguration
+    {
+        return $this->watched_records[$model::class][(string) $model->getKey()]
+            ?? $this->watched_classes[$model::class]
+            ?? $this->watch_all;
     }
 
     /**
@@ -77,7 +73,7 @@ class TraceLogManager
      */
     public function stop(): void
     {
-        $this->watch_all = false;
+        $this->watch_all = null;
         $this->watched_classes = [];
         $this->watched_records = [];
     }
