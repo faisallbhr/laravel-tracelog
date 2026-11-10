@@ -137,8 +137,10 @@ class EloquentEventListenerTest extends TestCase
         $model->forceDelete();
 
         $context = $this->readLogContext();
+        $log = file_get_contents($this->log_path);
 
-        $this->assertSame(1, substr_count(file_get_contents($this->log_path), '"event":'));
+        $this->assertSame(2, substr_count($log, '"event":'));
+        $this->assertStringContainsString('"event": "deleted"', $log);
         $this->assertSame('forceDeleted', $context['event']);
         $this->assertArrayNotHasKey('changes', $context);
     }

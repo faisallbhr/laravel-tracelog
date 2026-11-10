@@ -29,10 +29,6 @@ class EloquentEventListener
             return;
         }
 
-        if ($this->shouldSkipEvent($event, $model)) {
-            return;
-        }
-
         $context = [
             'event' => $event->value,
             'model' => $model::class,
@@ -48,16 +44,6 @@ class EloquentEventListener
         $context['source'] = $this->resolveSource();
 
         Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    }
-
-    /**
-     * Suppress the generic deleted event also emitted by force-delete.
-     */
-    private function shouldSkipEvent(ModelEvent $event, Model $model): bool
-    {
-        return $event === ModelEvent::Deleted
-            && method_exists($model, 'isForceDeleting')
-            && $model->isForceDeleting();
     }
 
     /**
