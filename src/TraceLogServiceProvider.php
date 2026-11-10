@@ -5,6 +5,7 @@ namespace TraceLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use TraceLog\Enums\ModelEvent;
 use TraceLog\Listeners\EloquentEventListener;
 
 /**
@@ -22,13 +23,13 @@ class TraceLogServiceProvider extends ServiceProvider
     }
 
     /**
-     * Listen for created, updated, and deleted events from every Eloquent model.
+     * Listen for supported events from every Eloquent model.
      */
     public function boot(): void
     {
-        foreach (['created', 'updated', 'deleted'] as $event) {
+        foreach (ModelEvent::cases() as $event) {
             Event::listen(
-                "eloquent.{$event}: *",
+                "eloquent.{$event->value}: *",
                 function (string $event_name, array $payload) use ($event): void {
                     $model = $payload[0] ?? null;
 

@@ -3,6 +3,7 @@
 namespace TraceLog\Tests;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use TraceLog\Concerns\Traceable;
@@ -33,6 +34,7 @@ class EloquentEventListenerTest extends TestCase
         Schema::create('trace_test_models', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->softDeletes();
         });
     }
 
@@ -106,6 +108,46 @@ class EloquentEventListenerTest extends TestCase
         ], $context['changes']['name']);
     }
 
+    public function test_restored_event(): void
+    {
+        $model = TraceTestModel::create([
+            'name' => 'Before',
+        ]);
+        $model->delete();
+
+        TraceLog::watch();
+
+        $model->restore();
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(1, substr_count(file_get_contents($this->log_path), '"event":'));
+        $this->assertSame('restored', $context['event']);
+        $this->assertNotNull($context['changes']['deleted_at']['old']);
+        $this->assertNull($context['changes']['deleted_at']['new']);
+    }
+
+    public function test_force_deleted_event(): void
+    {
+        $model = TraceTestModel::create([
+            'name' => 'Before',
+        ]);
+        $model->delete();
+
+        TraceLog::watch();
+
+        $model->forceDelete();
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(1, substr_count(file_get_contents($this->log_path), '"event":'));
+        $this->assertSame('forceDeleted', $context['event']);
+        $this->assertSame([
+            'old' => 'Before',
+            'new' => null,
+        ], $context['changes']['name']);
+    }
+
     public function test_unwatched_model_is_not_logged(): void
     {
         TraceTestModel::create([
@@ -133,11 +175,11 @@ class EloquentEventListenerTest extends TestCase
 
         $content = file_get_contents($this->log_path);
 
-        preg_match('/(\{.*\})/s', $content, $matches);
+        $start = strrpos($content, 'DEBUG: ');
 
-        $this->assertArrayHasKey(1, $matches);
+        $this->assertNotFalse($start);
 
-        return json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
+        return json_decode(substr($content, $start + 7), true, 512, JSON_THROW_ON_ERROR);
     }
 
     public function test_event_contains_source(): void
@@ -184,6 +226,8 @@ class EloquentEventListenerTest extends TestCase
 
 class TraceTestModel extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'trace_test_models';
 
     protected $fillable = ['name'];

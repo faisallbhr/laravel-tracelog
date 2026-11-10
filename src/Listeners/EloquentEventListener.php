@@ -5,6 +5,7 @@ namespace TraceLog\Listeners;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
+use TraceLog\Enums\ModelEvent;
 use TraceLog\TraceLogManager;
 
 /**
@@ -18,10 +19,8 @@ class EloquentEventListener
 
     /**
      * Log a model event when the model is watched or uses the Traceable trait.
-     *
-     * @param  'created'|'updated'|'deleted'  $event
      */
-    public function handle(string $event, Model $model): void
+    public function handle(ModelEvent $event, Model $model): void
     {
         if (
             ! $this->manager->isWatching($model)
@@ -30,8 +29,12 @@ class EloquentEventListener
             return;
         }
 
+        if ($this->shouldSkipEvent($event, $model)) {
+            return;
+        }
+
         $context = [
-            'event' => $event,
+            'event' => $event->value,
             'model' => $model::class,
             'id' => $model->getKey(),
             'changes' => $this->resolveChanges($event, $model),
@@ -42,16 +45,35 @@ class EloquentEventListener
     }
 
     /**
-     * @param  'created'|'updated'|'deleted'  $event
+     * Suppress generic events also emitted by restore and force-delete.
+     */
+    private function shouldSkipEvent(ModelEvent $event, Model $model): bool
+    {
+        if ($event === ModelEvent::Deleted && method_exists($model, 'isForceDeleting')) {
+            return $model->isForceDeleting();
+        }
+
+        if ($event !== ModelEvent::Updated || ! method_exists($model, 'getDeletedAtColumn')) {
+            return false;
+        }
+
+        $deleted_at = $model->getDeletedAtColumn();
+
+        // shortcut: a cleared deleted_at is treated as restore, revisit if manual undeletes need update logs.
+        return array_key_exists($deleted_at, $model->getChanges())
+            && ($model->getPrevious()[$deleted_at] ?? null) !== null
+            && $model->getAttribute($deleted_at) === null;
+    }
+
+    /**
      * @return array<string, array{old: mixed, new: mixed}>
      */
-    private function resolveChanges(string $event, Model $model): array
+    private function resolveChanges(ModelEvent $event, Model $model): array
     {
         return match ($event) {
-            'created' => $this->diff([], $model->getAttributes()),
-            'updated' => $this->diff($model->getPrevious(), $model->getChanges()),
-            'deleted' => $this->diff($model->getAttributes(), []),
-            default => [],
+            ModelEvent::Created => $this->diff([], $model->getAttributes()),
+            ModelEvent::Updated, ModelEvent::Restored => $this->diff($model->getPrevious(), $model->getChanges()),
+            ModelEvent::Deleted, ModelEvent::ForceDeleted => $this->diff($model->getAttributes(), []),
         };
     }
 
