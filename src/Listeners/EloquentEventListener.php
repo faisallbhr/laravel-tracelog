@@ -7,12 +7,20 @@ use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
 use TraceLog\TraceLogManager;
 
+/**
+ * Writes watched Eloquent events to Laravel's default log channel.
+ */
 class EloquentEventListener
 {
     public function __construct(
         private readonly TraceLogManager $manager
     ) {}
 
+    /**
+     * Log a model event when the model is watched or uses the Traceable trait.
+     *
+     * @param  'created'|'updated'|'deleted'  $event
+     */
     public function handle(string $event, Model $model): void
     {
         if (
@@ -33,6 +41,10 @@ class EloquentEventListener
         Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
+    /**
+     * @param  'created'|'updated'|'deleted'  $event
+     * @return array<string, array{old: mixed, new: mixed}>
+     */
     private function resolveChanges(string $event, Model $model): array
     {
         return match ($event) {
@@ -43,6 +55,11 @@ class EloquentEventListener
         };
     }
 
+    /**
+     * @param  array<string, mixed>  $old
+     * @param  array<string, mixed>  $new
+     * @return array<string, array{old: mixed, new: mixed}>
+     */
     private function diff(array $old, array $new): array
     {
         $changes = [];
@@ -57,6 +74,9 @@ class EloquentEventListener
         return $changes;
     }
 
+    /**
+     * Find the first application stack frame in a clickable file:line format.
+     */
     private function resolveSource(): ?string
     {
         $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
