@@ -15,27 +15,48 @@ permissions:
 
 jobs:
   tests:
-    name: PHPUnit (Laravel ${{ matrix.laravel }}, PHP ${{ matrix.php }})
+    name: PHPUnit (Laravel ${{ matrix.laravel }}, ${{ matrix.dependencies }}, PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - laravel: 11
+            dependencies: lowest
             php: '8.2'
             testbench: '^9.0'
             phpunit: '^11.5'
-            security_option: '--no-security-blocking'
+            composer_options: '--prefer-lowest --no-security-blocking'
           - laravel: 12
+            dependencies: lowest
             php: '8.2'
             testbench: '^10.0'
             phpunit: '^11.5'
-            security_option: ''
+            composer_options: '--prefer-lowest --no-security-blocking'
           - laravel: 13
+            dependencies: lowest
             php: '8.3'
             testbench: '^11.0'
             phpunit: '^12.0'
-            security_option: ''
+            composer_options: '--prefer-lowest --no-security-blocking'
+          - laravel: 11
+            dependencies: highest
+            php: '8.2'
+            testbench: '^9.0'
+            phpunit: '^11.5'
+            composer_options: '--no-security-blocking'
+          - laravel: 12
+            dependencies: highest
+            php: '8.2'
+            testbench: '^10.0'
+            phpunit: '^11.5'
+            composer_options: ''
+          - laravel: 13
+            dependencies: highest
+            php: '8.3'
+            testbench: '^11.0'
+            phpunit: '^12.0'
+            composer_options: ''
 
     steps:
       - name: Checkout repository
@@ -53,7 +74,7 @@ jobs:
         run: composer require --dev "orchestra/testbench:${{ matrix.testbench }}" "phpunit/phpunit:${{ matrix.phpunit }}" --no-update --no-interaction
 
       - name: Install Composer dependencies
-        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies ${{ matrix.security_option }}
+        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies ${{ matrix.composer_options }}
 
       - name: Run PHPUnit
         run: composer test
@@ -72,6 +93,9 @@ jobs:
           php-version: '8.5'
           coverage: none
           tools: composer:v2
+
+      - name: Validate Composer configuration
+        run: composer validate --strict
 
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
