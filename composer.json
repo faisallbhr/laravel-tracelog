@@ -3,6 +3,11 @@
     "description": "Trace Eloquent model changes without writing debug logs one by one.",
     "type": "library",
     "license": "MIT",
+    "homepage": "https://github.com/faisallbhr/laravel-tracelog",
+    "support": {
+        "issues": "https://github.com/faisallbhr/laravel-tracelog/issues",
+        "source": "https://github.com/faisallbhr/laravel-tracelog"
+    },
     "keywords": [
         "laravel",
         "eloquent",

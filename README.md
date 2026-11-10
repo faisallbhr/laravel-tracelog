@@ -1,5 +1,6 @@
 # Laravel TraceLog
 
+[![CI](https://github.com/faisallbhr/laravel-tracelog/actions/workflows/ci.yml/badge.svg)](https://github.com/faisallbhr/laravel-tracelog/actions/workflows/ci.yml)
 [![Latest Version](https://img.shields.io/packagist/v/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
 [![Downloads](https://img.shields.io/packagist/dt/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
 [![License](https://img.shields.io/packagist/l/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
@@ -154,6 +155,18 @@ TraceLog::stop();
 
 `stop()` does not disable models using the `Traceable` trait.
 
+## Stable API
+
+The supported public API consists of:
+
+- `TraceLog::watch()`, `TraceLog::stop()`, and `TraceLog::isWatching()`
+- `only()`, `except()`, `events()`, and `sensitive()` on a watch configuration
+- the `ModelEvent` enum
+- the `Traceable` trait
+
+Classes under the `TraceLog\Internal` namespace are implementation details and
+are not part of the supported public API.
+
 ## Log output
 
 TraceLog writes at the `debug` level through Laravel's default log channel, so
@@ -175,6 +188,11 @@ An update produces a structured entry like this:
     "source": "/path/to/app/Http/Controllers/OrderController.php:42"
 }
 ```
+
+Laravel emits companion events for soft-delete operations. By default,
+`restore()` logs both `updated` and `restored`, while `forceDelete()` logs both
+`deleted` and `forceDeleted`. Use `events()` when only the specific lifecycle
+event is needed.
 
 ## Important
 
