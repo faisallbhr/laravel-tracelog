@@ -34,7 +34,7 @@ class EloquentEventListener
             'driver' => 'single',
             'path' => storage_path('logs/tracelog.log'),
             'level' => 'debug',
-        ])->debug('Eloquent event fired', $context);
+        ])->debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     private function resolveChanges(string $event, Model $model): array

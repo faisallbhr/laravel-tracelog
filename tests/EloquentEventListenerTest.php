@@ -125,7 +125,7 @@ class EloquentEventListenerTest extends TestCase
 
         $content = file_get_contents($this->log_path);
 
-        preg_match('/Eloquent event fired (\{.*\})/', $content, $matches);
+        preg_match('/(\{.*\})/s', $content, $matches);
 
         $this->assertArrayHasKey(1, $matches);
 
