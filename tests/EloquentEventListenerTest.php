@@ -16,7 +16,15 @@ class EloquentEventListenerTest extends TestCase
     {
         parent::setUp();
 
-        $this->log_path = storage_path('logs/tracelog.log');
+        $this->log_path = storage_path('logs/tracelog-test.log');
+
+        config([
+            'logging.default' => 'tracelog-test',
+            'logging.channels.tracelog-test' => [
+                'driver' => 'single',
+                'path' => $this->log_path,
+            ],
+        ]);
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);

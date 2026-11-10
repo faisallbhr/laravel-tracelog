@@ -30,11 +30,7 @@ class EloquentEventListener
             'origin' => $this->resolveOrigin(),
         ];
 
-        Log::build([
-            'driver' => 'single',
-            'path' => storage_path('logs/tracelog.log'),
-            'level' => 'debug',
-        ])->debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     private function resolveChanges(string $event, Model $model): array
