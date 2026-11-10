@@ -149,9 +149,7 @@ class EloquentEventListenerTest extends TestCase
 
         $context = $this->readLogContext();
 
-        $this->assertIsArray($context['origin']);
-        $this->assertSame(__FILE__, $context['origin']['file']);
-        $this->assertSame($expected_line, $context['origin']['line']);
+        $this->assertSame(__FILE__.':'.$expected_line, $context['origin']);
     }
 
     public function test_traceable_model_is_logged_without_watch(): void

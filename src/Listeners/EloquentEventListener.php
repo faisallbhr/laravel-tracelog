@@ -57,7 +57,7 @@ class EloquentEventListener
         return $changes;
     }
 
-    private function resolveOrigin(): ?array
+    private function resolveOrigin(): ?string
     {
         $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 
@@ -76,10 +76,7 @@ class EloquentEventListener
                 continue;
             }
 
-            return [
-                'file' => $file,
-                'line' => $frame['line'] ?? null,
-            ];
+            return isset($frame['line']) ? $file.':'.$frame['line'] : $file;
         }
 
         return null;
