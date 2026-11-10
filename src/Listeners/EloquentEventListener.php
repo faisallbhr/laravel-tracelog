@@ -27,7 +27,7 @@ class EloquentEventListener
             'model' => $model::class,
             'id' => $model->getKey(),
             'changes' => $this->resolveChanges($event, $model),
-            'origin' => $this->resolveOrigin(),
+            'source' => $this->resolveSource(),
         ];
 
         Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
@@ -57,7 +57,7 @@ class EloquentEventListener
         return $changes;
     }
 
-    private function resolveOrigin(): ?string
+    private function resolveSource(): ?string
     {
         $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 

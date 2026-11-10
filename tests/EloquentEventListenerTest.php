@@ -140,7 +140,7 @@ class EloquentEventListenerTest extends TestCase
         return json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_event_contains_origin(): void
+    public function test_event_contains_source(): void
     {
         TraceLog::watch();
 
@@ -149,7 +149,7 @@ class EloquentEventListenerTest extends TestCase
 
         $context = $this->readLogContext();
 
-        $this->assertSame(__FILE__.':'.$expected_line, $context['origin']);
+        $this->assertSame(__FILE__.':'.$expected_line, $context['source']);
     }
 
     public function test_traceable_model_is_logged_without_watch(): void
