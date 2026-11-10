@@ -296,6 +296,36 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame($redacted, $changes['pin']);
     }
 
+    public function test_invalid_utf8_attribute_does_not_drop_the_log(): void
+    {
+        $model = TraceTestModel::create(['name' => 'Before']);
+
+        TraceLog::watch($model);
+
+        $model->update(['name' => "\xB1"]);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame('updated', $context['event']);
+        $this->assertSame("\u{FFFD}", $context['changes']['name']['new']);
+    }
+
+    public function test_update_only_logs_attributes_that_changed(): void
+    {
+        $model = TraceTestModelWithBroadPrevious::create([
+            'name' => 'Before',
+            'status' => 'pending',
+        ]);
+
+        TraceLog::watch();
+
+        $model->update(['name' => 'After']);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(['name'], array_keys($context['changes']));
+    }
+
     public function test_record_filter_takes_precedence_over_class_and_global_filters(): void
     {
         $model = TraceTestModel::create(['name' => 'Before', 'status' => 'pending']);
@@ -448,6 +478,18 @@ class TraceTestModel extends Model
     protected $fillable = ['name', 'status', 'total', 'notes', 'password', 'pin'];
 
     public $timestamps = false;
+}
+
+class TraceTestModelWithBroadPrevious extends TraceTestModel
+{
+    /** @return array<string, mixed> */
+    public function getPrevious(): array
+    {
+        return [
+            'name' => 'Before',
+            'status' => 'pending',
+        ];
+    }
 }
 
 class TraceableTestModel extends Model

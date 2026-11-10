@@ -4,19 +4,19 @@ namespace TraceLog;
 
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use TraceLog\Internal\WatchRegistry;
 
 /**
  * Tracks which Eloquent models should emit trace logs in the current scope.
  */
 class TraceLogManager
 {
-    private ?WatchConfiguration $watch_all = null;
+    private readonly WatchRegistry $registry;
 
-    /** @var array<class-string<Model>, WatchConfiguration> */
-    private array $watched_classes = [];
-
-    /** @var array<class-string<Model>, array<string, WatchConfiguration>> */
-    private array $watched_records = [];
+    public function __construct(?WatchRegistry $registry = null)
+    {
+        $this->registry = $registry ?? new WatchRegistry;
+    }
 
     /**
      * Watch every model, all records of a model class, or one persisted record.
@@ -30,7 +30,7 @@ class TraceLogManager
     public function watch(Model|string|null $model = null): WatchConfiguration
     {
         if ($model === null) {
-            return $this->watch_all = new WatchConfiguration;
+            return new WatchConfiguration($this->registry->watchAll());
         }
 
         if (is_string($model) && ! is_a($model, Model::class, true)) {
@@ -38,16 +38,14 @@ class TraceLogManager
         }
 
         if (is_string($model)) {
-            return $this->watched_classes[$model] = new WatchConfiguration;
+            return new WatchConfiguration($this->registry->watchClass($model));
         }
 
         if ($model->getKey() === null) {
             throw new InvalidArgumentException('Cannot watch an unsaved Eloquent model.');
         }
 
-        return $this->watched_records[$model::class][
-            (string) $model->getKey()
-        ] = new WatchConfiguration;
+        return new WatchConfiguration($this->registry->watchRecord($model));
     }
 
     /**
@@ -55,17 +53,7 @@ class TraceLogManager
      */
     public function isWatching(Model $model): bool
     {
-        return $this->configurationFor($model) !== null;
-    }
-
-    /**
-     * Resolve the most specific watch configuration for a model.
-     */
-    public function configurationFor(Model $model): ?WatchConfiguration
-    {
-        return $this->watched_records[$model::class][(string) $model->getKey()]
-            ?? $this->watched_classes[$model::class]
-            ?? $this->watch_all;
+        return $this->registry->rulesFor($model) !== null;
     }
 
     /**
@@ -73,8 +61,6 @@ class TraceLogManager
      */
     public function stop(): void
     {
-        $this->watch_all = null;
-        $this->watched_classes = [];
-        $this->watched_records = [];
+        $this->registry->stop();
     }
 }

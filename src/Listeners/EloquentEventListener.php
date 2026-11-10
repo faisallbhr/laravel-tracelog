@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
-use TraceLog\TraceLogManager;
-use TraceLog\WatchConfiguration;
+use TraceLog\Internal\WatchRegistry;
+use TraceLog\Internal\WatchRules;
 use WeakMap;
 
 /**
@@ -19,7 +19,7 @@ class EloquentEventListener
     private WeakMap $previous;
 
     public function __construct(
-        private readonly TraceLogManager $manager
+        private readonly WatchRegistry $registry
     ) {
         $this->previous = new WeakMap;
     }
@@ -29,16 +29,16 @@ class EloquentEventListener
      */
     public function handle(ModelEvent $event, Model $model): void
     {
-        $configuration = $this->manager->configurationFor($model);
+        $rules = $this->registry->rulesFor($model);
 
-        if ($configuration === null && ! in_array(Traceable::class, class_uses_recursive($model), true)) {
+        if ($rules === null && ! in_array(Traceable::class, class_uses_recursive($model), true)) {
             return;
         }
 
-        $configuration ??= new WatchConfiguration;
+        $rules ??= new WatchRules;
         $this->capturePrevious($event, $model);
 
-        if (! $configuration->includes($event)) {
+        if (! $rules->includes($event)) {
             return;
         }
 
@@ -48,7 +48,7 @@ class EloquentEventListener
             'id' => $model->getKey(),
         ];
 
-        $changes = $configuration->filter($this->resolveChanges($event, $model));
+        $changes = $rules->filter($this->resolveChanges($event, $model));
 
         if ($event === ModelEvent::Updated && $changes === []) {
             return;
@@ -60,7 +60,14 @@ class EloquentEventListener
 
         $context['source'] = $this->resolveSource();
 
-        Log::debug(json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        Log::debug(json_encode(
+            $context,
+            JSON_PRETTY_PRINT
+                | JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_INVALID_UTF8_SUBSTITUTE
+                | JSON_PARTIAL_OUTPUT_ON_ERROR
+        ));
     }
 
     /**
@@ -70,7 +77,10 @@ class EloquentEventListener
     {
         return match ($event) {
             ModelEvent::Created => $this->diff([], $model->getAttributes()),
-            ModelEvent::Updated, ModelEvent::Restored => $this->diff($this->previous($event, $model), $model->getChanges()),
+            ModelEvent::Updated, ModelEvent::Restored => $this->diff(
+                array_intersect_key($this->previous($event, $model), $model->getChanges()),
+                $model->getChanges()
+            ),
             ModelEvent::Deleted, ModelEvent::ForceDeleted => [],
         };
     }

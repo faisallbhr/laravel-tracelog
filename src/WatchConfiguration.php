@@ -4,35 +4,19 @@ namespace TraceLog;
 
 use InvalidArgumentException;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\WatchRules;
 
 /**
  * Configures filtering for one model watch registration.
  */
 class WatchConfiguration
 {
-    private const SENSITIVE_ATTRIBUTES = [
-        'password',
-        'password_confirmation',
-        'remember_token',
-        'api_token',
-        'access_token',
-        'refresh_token',
-        'secret',
-        'secret_key',
-        'private_key',
-    ];
+    private readonly WatchRules $rules;
 
-    /** @var list<string>|null */
-    private ?array $only = null;
-
-    /** @var list<string> */
-    private array $except = [];
-
-    /** @var list<ModelEvent>|null */
-    private ?array $events = null;
-
-    /** @var list<string> */
-    private array $sensitive = [];
+    public function __construct(?WatchRules $rules = null)
+    {
+        $this->rules = $rules ?? new WatchRules;
+    }
 
     /**
      * Restrict logged changes to the given attributes.
@@ -41,7 +25,7 @@ class WatchConfiguration
      */
     public function only(array $attributes): static
     {
-        $this->only = $this->validateAttributes($attributes);
+        $this->rules->only($this->validateAttributes($attributes));
 
         return $this;
     }
@@ -53,7 +37,7 @@ class WatchConfiguration
      */
     public function except(array $attributes): static
     {
-        $this->except = $this->validateAttributes($attributes);
+        $this->rules->except($this->validateAttributes($attributes));
 
         return $this;
     }
@@ -71,7 +55,7 @@ class WatchConfiguration
             }
         }
 
-        $this->events = array_values($events);
+        $this->rules->events(array_values($events));
 
         return $this;
     }
@@ -83,36 +67,9 @@ class WatchConfiguration
      */
     public function sensitive(array $attributes): static
     {
-        $this->sensitive = $this->validateAttributes($attributes);
+        $this->rules->sensitive($this->validateAttributes($attributes));
 
         return $this;
-    }
-
-    public function includes(ModelEvent $event): bool
-    {
-        return $this->events === null || in_array($event, $this->events, true);
-    }
-
-    /**
-     * @param  array<string, array{old: mixed, new: mixed}>  $changes
-     * @return array<string, array{old: mixed, new: mixed}>
-     */
-    public function filter(array $changes): array
-    {
-        if ($this->only !== null) {
-            $changes = array_intersect_key($changes, array_flip($this->only));
-        }
-
-        $changes = array_diff_key($changes, array_flip($this->except));
-        $sensitive = array_map('strtolower', [...self::SENSITIVE_ATTRIBUTES, ...$this->sensitive]);
-
-        foreach (array_keys($changes) as $attribute) {
-            if (in_array(strtolower($attribute), $sensitive, true)) {
-                $changes[$attribute] = ['old' => '[REDACTED]', 'new' => '[REDACTED]'];
-            }
-        }
-
-        return $changes;
     }
 
     /**

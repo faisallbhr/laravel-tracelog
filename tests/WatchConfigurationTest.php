@@ -5,17 +5,20 @@ namespace TraceLog\Tests;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\WatchRules;
 use TraceLog\WatchConfiguration;
 
 class WatchConfigurationTest extends TestCase
 {
     public function test_only_and_except_filter_changes_in_order(): void
     {
-        $configuration = (new WatchConfiguration)
+        $rules = new WatchRules;
+
+        (new WatchConfiguration($rules))
             ->only(['total', 'status', 'notes'])
             ->except(['notes']);
 
-        $changes = $configuration->filter([
+        $changes = $rules->filter([
             'status' => ['old' => 'pending', 'new' => 'paid'],
             'total' => ['old' => 100, 'new' => 150],
             'notes' => ['old' => null, 'new' => 'Paid'],
@@ -28,27 +31,54 @@ class WatchConfigurationTest extends TestCase
     public function test_empty_attribute_filters_have_explicit_meanings(): void
     {
         $changes = ['status' => ['old' => 'pending', 'new' => 'paid']];
+        $only_rules = new WatchRules;
+        $except_rules = new WatchRules;
 
-        $this->assertSame([], (new WatchConfiguration)->only([])->filter($changes));
-        $this->assertSame($changes, (new WatchConfiguration)->except([])->filter($changes));
+        (new WatchConfiguration($only_rules))->only([]);
+        (new WatchConfiguration($except_rules))->except([]);
+
+        $this->assertSame([], $only_rules->filter($changes));
+        $this->assertSame($changes, $except_rules->filter($changes));
     }
 
     public function test_sensitive_attributes_are_redacted_case_insensitively(): void
     {
-        $changes = (new WatchConfiguration)
+        $rules = new WatchRules;
+
+        (new WatchConfiguration($rules))
             ->only(['Password', 'pin', 'name'])
-            ->sensitive(['PIN'])
-            ->filter([
-                'Password' => ['old' => 'old-secret', 'new' => 'new-secret'],
-                'pin' => ['old' => '1234', 'new' => '5678'],
-                'name' => ['old' => 'Jane', 'new' => 'John'],
-            ]);
+            ->sensitive(['PIN']);
+
+        $changes = $rules->filter([
+            'Password' => ['old' => 'old-secret', 'new' => 'new-secret'],
+            'pin' => ['old' => '1234', 'new' => '5678'],
+            'name' => ['old' => 'Jane', 'new' => 'John'],
+        ]);
 
         $redacted = ['old' => '[REDACTED]', 'new' => '[REDACTED]'];
 
         $this->assertSame($redacted, $changes['Password']);
         $this->assertSame($redacted, $changes['pin']);
         $this->assertSame(['old' => 'Jane', 'new' => 'John'], $changes['name']);
+    }
+
+    public function test_repeated_sensitive_calls_keep_previous_attributes(): void
+    {
+        $rules = new WatchRules;
+
+        (new WatchConfiguration($rules))
+            ->sensitive(['pin'])
+            ->sensitive(['security_answer']);
+
+        $changes = $rules->filter([
+            'pin' => ['old' => '1234', 'new' => '5678'],
+            'security_answer' => ['old' => 'Blue', 'new' => 'Green'],
+        ]);
+
+        $redacted = ['old' => '[REDACTED]', 'new' => '[REDACTED]'];
+
+        $this->assertSame($redacted, $changes['pin']);
+        $this->assertSame($redacted, $changes['security_answer']);
     }
 
     public function test_every_default_sensitive_attribute_is_redacted(): void
@@ -70,7 +100,7 @@ class WatchConfigurationTest extends TestCase
             $changes[$attribute] = ['old' => 'old-secret', 'new' => 'new-secret'];
         }
 
-        $filtered = (new WatchConfiguration)->filter($changes);
+        $filtered = (new WatchRules)->filter($changes);
 
         foreach ($attributes as $attribute) {
             $this->assertSame(
@@ -82,17 +112,22 @@ class WatchConfigurationTest extends TestCase
 
     public function test_events_default_to_all_and_can_be_restricted(): void
     {
-        $configuration = new WatchConfiguration;
+        $rules = new WatchRules;
+        $configuration = new WatchConfiguration($rules);
 
         foreach (ModelEvent::cases() as $event) {
-            $this->assertTrue($configuration->includes($event));
+            $this->assertTrue($rules->includes($event));
         }
 
         $configuration->events([ModelEvent::Updated]);
 
-        $this->assertTrue($configuration->includes(ModelEvent::Updated));
-        $this->assertFalse($configuration->includes(ModelEvent::Created));
-        $this->assertFalse((new WatchConfiguration)->events([])->includes(ModelEvent::Updated));
+        $this->assertTrue($rules->includes(ModelEvent::Updated));
+        $this->assertFalse($rules->includes(ModelEvent::Created));
+
+        $empty_rules = new WatchRules;
+        (new WatchConfiguration($empty_rules))->events([]);
+
+        $this->assertFalse($empty_rules->includes(ModelEvent::Updated));
     }
 
     public function test_invalid_event_is_rejected(): void

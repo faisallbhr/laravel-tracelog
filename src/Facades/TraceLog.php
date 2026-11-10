@@ -10,6 +10,8 @@ use TraceLog\TraceLogManager;
  */
 class TraceLog extends Facade
 {
+    protected static $cached = false;
+
     protected static function getFacadeAccessor(): string
     {
         return TraceLogManager::class;

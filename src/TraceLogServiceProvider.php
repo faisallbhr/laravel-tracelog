@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\WatchRegistry;
 use TraceLog\Listeners\EloquentEventListener;
 
 /**
@@ -18,7 +19,8 @@ class TraceLogServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->scoped(TraceLogManager::class, fn () => new TraceLogManager);
+        $this->app->scoped(WatchRegistry::class);
+        $this->app->scoped(TraceLogManager::class);
         $this->app->scoped(EloquentEventListener::class);
     }
 

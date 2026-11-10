@@ -3,8 +3,9 @@
 namespace TraceLog\Tests;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Facade;
 use InvalidArgumentException;
+use TraceLog\Facades\TraceLog;
+use TraceLog\Internal\WatchRegistry;
 use TraceLog\TraceLogManager;
 
 class TraceLogManagerTest extends TestCase
@@ -46,6 +47,24 @@ class TraceLogManagerTest extends TestCase
         $this->assertFalse($manager->isWatching($other));
     }
 
+    public function test_record_watch_does_not_match_the_same_key_on_another_connection(): void
+    {
+        $manager = new TraceLogManager;
+
+        $watched = new TestModel;
+        $watched->id = 10;
+        $watched->setConnection('tenant_a');
+
+        $other = new TestModel;
+        $other->id = 10;
+        $other->setConnection('tenant_b');
+
+        $manager->watch($watched);
+
+        $this->assertTrue($manager->isWatching($watched));
+        $this->assertFalse($manager->isWatching($other));
+    }
+
     public function test_stop_clears_all_watchers(): void
     {
         $manager = new TraceLogManager;
@@ -58,46 +77,54 @@ class TraceLogManagerTest extends TestCase
 
     public function test_most_specific_watch_configuration_wins(): void
     {
-        $manager = new TraceLogManager;
+        $registry = new WatchRegistry;
+        $manager = new TraceLogManager($registry);
         $model = new TestModel;
         $model->id = 10;
 
-        $global = $manager->watch();
-        $class = $manager->watch(TestModel::class);
-        $record = $manager->watch($model);
+        $manager->watch();
+        $global = $registry->rulesFor(new OtherTestModel);
 
-        $this->assertSame($record, $manager->configurationFor($model));
+        $manager->watch(TestModel::class);
+        $class = $registry->rulesFor($model);
+
+        $manager->watch($model);
+        $record = $registry->rulesFor($model);
 
         $other_record = new TestModel;
         $other_record->id = 11;
 
-        $this->assertSame($class, $manager->configurationFor($other_record));
-        $this->assertSame($global, $manager->configurationFor(new OtherTestModel));
+        $this->assertSame($record, $registry->rulesFor($model));
+        $this->assertSame($class, $registry->rulesFor($other_record));
+        $this->assertSame($global, $registry->rulesFor(new OtherTestModel));
     }
 
     public function test_repeated_watch_replaces_its_configuration(): void
     {
-        $manager = new TraceLogManager;
+        $registry = new WatchRegistry;
+        $manager = new TraceLogManager($registry);
 
-        $first = $manager->watch(TestModel::class);
-        $second = $manager->watch(TestModel::class);
+        $manager->watch(TestModel::class);
+        $first = $registry->rulesFor(new TestModel);
+
+        $manager->watch(TestModel::class);
+        $second = $registry->rulesFor(new TestModel);
 
         $this->assertNotSame($first, $second);
-        $this->assertSame($second, $manager->configurationFor(new TestModel));
+        $this->assertSame($second, $registry->rulesFor(new TestModel));
     }
 
     public function test_scoped_lifecycle_does_not_leak_watch_configuration(): void
     {
+        TraceLog::watch()->only([]);
         $manager = $this->app->make(TraceLogManager::class);
-        $manager->watch()->only([]);
 
         $this->app->forgetScopedInstances();
-        Facade::clearResolvedInstance(TraceLogManager::class);
 
         $next_manager = $this->app->make(TraceLogManager::class);
 
         $this->assertNotSame($manager, $next_manager);
-        $this->assertFalse($next_manager->isWatching(new TestModel));
+        $this->assertFalse(TraceLog::isWatching(new TestModel));
     }
 
     public function test_cannot_watch_unsaved_model(): void
