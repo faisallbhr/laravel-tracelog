@@ -1,5 +1,9 @@
 # Laravel TraceLog
 
+[![Latest Version](https://img.shields.io/packagist/v/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
+[![Downloads](https://img.shields.io/packagist/dt/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
+[![License](https://img.shields.io/packagist/l/faisallbhr/laravel-tracelog)](https://packagist.org/packages/faisallbhr/laravel-tracelog)
+
 Trace Eloquent model changes without writing debug logs one by one.
 
 Debugging model changes often means logging a few attributes, repeating the
