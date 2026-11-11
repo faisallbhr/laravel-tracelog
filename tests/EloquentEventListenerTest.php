@@ -2,6 +2,7 @@
 
 namespace TraceLog\Tests;
 
+use DateTimeZone;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Facades\TraceLog;
+use TraceLog\Internal\TraceRotatingFileHandler;
+use TraceLog\Internal\TraceWriter;
 
 class EloquentEventListenerTest extends TestCase
 {
@@ -23,6 +26,8 @@ class EloquentEventListenerTest extends TestCase
         foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
             unlink($path);
         }
+
+        @unlink(storage_path('logs/tracelog.log.lock'));
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -47,6 +52,8 @@ class EloquentEventListenerTest extends TestCase
         foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
             unlink($path);
         }
+
+        @unlink(storage_path('logs/tracelog.log.lock'));
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -113,6 +120,98 @@ class EloquentEventListenerTest extends TestCase
         $this->assertFileExists($second_path);
         $this->assertCount(1, file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
         $this->assertCount(1, file($second_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+    }
+
+    public function test_stale_handlers_coordinate_part_rotation(): void
+    {
+        config(['tracelog.logging.max_size' => 1]);
+        $first_writer = new TraceWriter(app('config'));
+        $second_writer = new TraceWriter(app('config'));
+        $payload = [
+            'trace_id' => 'aaaabbbb',
+            'tags' => [],
+            'event' => 'updated',
+            'model' => 'Order',
+            'id' => 1,
+            'source' => null,
+        ];
+
+        $first_writer->write($payload);
+        $second_writer->write($payload);
+
+        $parts = glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [];
+
+        $this->assertCount(2, $parts);
+        foreach ($parts as $part) {
+            $this->assertCount(1, file($part, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+            $this->assertGreaterThan(1, filesize($part));
+        }
+    }
+
+    public function test_retention_removes_parts_older_than_configured_days(): void
+    {
+        config(['tracelog.logging.days' => 1]);
+        $old_path = storage_path('logs/tracelog-'.now()->subDay()->format('Y-m-d').'-1.log');
+        file_put_contents($old_path, "old\n");
+
+        TraceLog::watch();
+        TraceTestModel::create(['name' => 'Current']);
+
+        $this->assertFileDoesNotExist($old_path);
+    }
+
+    public function test_maximum_part_size_must_be_positive(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new TraceRotatingFileHandler(
+            storage_path('logs/tracelog.log'),
+            0,
+            7,
+            new DateTimeZone('UTC')
+        );
+    }
+
+    public function test_concurrent_processes_rotate_into_separate_parts(): void
+    {
+        if (! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('pcntl is required for the process concurrency test.');
+        }
+
+        config(['tracelog.logging.max_size' => 1]);
+        $payload = [
+            'trace_id' => 'aaaabbbb',
+            'tags' => [],
+            'event' => 'updated',
+            'model' => 'Order',
+            'id' => 1,
+            'source' => null,
+        ];
+        $children = [];
+
+        for ($index = 0; $index < 2; $index++) {
+            $pid = pcntl_fork();
+            $this->assertNotSame(-1, $pid);
+
+            if ($pid === 0) {
+                (new TraceWriter(app('config')))->write($payload);
+                exit(0);
+            }
+
+            $children[] = $pid;
+        }
+
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            $this->assertSame(0, pcntl_wexitstatus($status));
+        }
+
+        $parts = glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [];
+
+        $this->assertCount(2, $parts);
+        foreach ($parts as $part) {
+            $this->assertCount(1, file($part, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+        }
     }
 
     public function test_each_jsonl_line_is_an_independent_json_object(): void

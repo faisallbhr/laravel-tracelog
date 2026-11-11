@@ -63,18 +63,34 @@ class TraceReaderTest extends TestCase
         $this->assertSame(2, $result['traces'][0]['event_count']);
     }
 
-    public function test_trace_keeps_event_order_and_same_ids_in_other_files_are_separate(): void
+    public function test_trace_keeps_event_order_across_parts_but_not_days(): void
     {
         $first = $this->event('aaaabbbb', '2026-11-11T00:00:00.000000+00:00', [], 'Order');
         $second = $this->event('aaaabbbb', '2026-11-11T00:00:01.000000+00:00', [], 'Order');
         $this->write('tracelog-2026-11-11-1.log', "$first\n$second\n");
-        $this->write('tracelog-2026-11-12-1.log', $this->event('aaaabbbb', '2026-11-12T00:00:00.000000+00:00', [], 'Stock')."\n");
+        $this->write('tracelog-2026-11-11-2.log', $this->event('aaaabbbb', '2026-11-11T00:00:02.000000+00:00', [], 'Stock')."\n");
+        $this->write('tracelog-2026-11-12-1.log', $this->event('aaaabbbb', '2026-11-12T00:00:00.000000+00:00', [], 'Invoice')."\n");
 
         $trace = $this->reader()->trace('tracelog-2026-11-11-1.log', 'aaaabbbb');
 
-        $this->assertSame(2, $trace['event_count']);
-        $this->assertSame(['Order', 'Order'], array_column($trace['events'], 'model'));
+        $this->assertSame(3, $trace['event_count']);
+        $this->assertSame(['Order', 'Order', 'Stock'], array_column($trace['events'], 'model'));
+        $this->assertSame('2026-11-11T00:00:00.000000+00:00', $trace['started_at']);
+        $this->assertSame('2026-11-11T00:00:02.000000+00:00', $trace['ended_at']);
         $this->assertSame(1, $this->reader()->trace('tracelog-2026-11-12-1.log', 'aaaabbbb')['event_count']);
+    }
+
+    public function test_summary_uses_minimum_and_maximum_event_timestamps(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', implode("\n", [
+            $this->event('aaaabbbb', '2026-11-11T00:00:02.000000+00:00', [], 'Order'),
+            $this->event('aaaabbbb', '2026-11-11T00:00:01.000000+00:00', [], 'Order'),
+        ])."\n");
+
+        $trace = $this->reader()->trace('tracelog-2026-11-11-1.log', 'aaaabbbb');
+
+        $this->assertSame('2026-11-11T00:00:01.000000+00:00', $trace['started_at']);
+        $this->assertSame('2026-11-11T00:00:02.000000+00:00', $trace['ended_at']);
     }
 
     public function test_tag_filter_is_exact_and_no_match_returns_empty_page(): void
@@ -89,6 +105,31 @@ class TraceReaderTest extends TestCase
         $this->assertSame(1, $result['total']);
         $this->assertSame('aaaabbbb', $result['traces'][0]['trace_id']);
         $this->assertSame(0, $this->reader()->traces('tracelog-2026-11-11-1.log', tag: 'missing')['total']);
+    }
+
+    public function test_reader_rejects_invalid_page(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', '');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->reader()->traces('tracelog-2026-11-11-1.log', 0);
+    }
+
+    public function test_reader_rejects_per_page_above_configured_limit(): void
+    {
+        config(['tracelog.reader.max_page_size' => 1]);
+        $this->write('tracelog-2026-11-11-1.log', '');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->reader()->traces('tracelog-2026-11-11-1.log', per_page: 2);
+    }
+
+    public function test_reader_rejects_invalid_trace_id(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', '');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->reader()->trace('tracelog-2026-11-11-1.log', 'not-valid');
     }
 
     public function test_malformed_records_and_incomplete_final_line_are_skipped(): void

@@ -79,6 +79,7 @@ final class TraceReader
         $offset = ($page - 1) * $per_page;
 
         foreach ($summaries as &$summary) {
+            unset($summary['_earliest_at']);
             unset($summary['_latest_at']);
         }
         unset($summary);
@@ -99,22 +100,24 @@ final class TraceReader
         $summary = null;
         $events = [];
 
-        foreach ($this->records($filename) as $event) {
-            if ($event['trace_id'] !== $trace_id) {
-                continue;
+        foreach ($this->filesForDate($filename) as $part_filename) {
+            foreach ($this->records($part_filename) as $event) {
+                if ($event['trace_id'] !== $trace_id) {
+                    continue;
+                }
+
+                $summary ??= $this->newSummary($filename, $trace_id);
+                $this->addToSummary($summary, $event);
+
+                $events[] = $event;
             }
-
-            $summary ??= $this->newSummary($filename, $trace_id);
-            $this->addToSummary($summary, $event);
-
-            $events[] = $event;
         }
 
         if ($summary === null) {
             return null;
         }
 
-        unset($summary['_latest_at']);
+        unset($summary['_earliest_at'], $summary['_latest_at']);
         $summary['events'] = $events;
 
         return $summary;
@@ -176,6 +179,24 @@ final class TraceReader
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $matches[1]);
 
         return $date !== false && $date->format('Y-m-d') === $matches[1];
+    }
+
+    /** @return list<string> */
+    private function filesForDate(string $filename): array
+    {
+        $this->pathFor($filename);
+        preg_match(self::FILENAME_PATTERN, $filename, $matches);
+        $date = $matches[1];
+
+        $files = array_values(array_filter(
+            $this->files(),
+            fn (string $candidate): bool => preg_match(self::FILENAME_PATTERN, $candidate, $candidate_matches) === 1
+                && $candidate_matches[1] === $date
+        ));
+
+        usort($files, fn (string $left, string $right): int => strnatcmp($left, $right));
+
+        return $files;
     }
 
     /** @param array<string, mixed> $event */
@@ -242,6 +263,7 @@ final class TraceReader
             'event_count' => 0,
             'tags' => [],
             'models' => [],
+            '_earliest_at' => null,
             '_latest_at' => null,
         ];
     }
@@ -249,13 +271,17 @@ final class TraceReader
     /** @param array<string, mixed> $summary @param array<string, mixed> $event */
     private function addToSummary(array &$summary, array $event): void
     {
-        $summary['started_at'] ??= $event['timestamp'];
-        $summary['ended_at'] = $event['timestamp'];
         $summary['event_count']++;
         $timestamp = new DateTimeImmutable($event['timestamp']);
 
+        if ($summary['_earliest_at'] === null || $timestamp < $summary['_earliest_at']) {
+            $summary['_earliest_at'] = $timestamp;
+            $summary['started_at'] = $event['timestamp'];
+        }
+
         if ($summary['_latest_at'] === null || $timestamp > $summary['_latest_at']) {
             $summary['_latest_at'] = $timestamp;
+            $summary['ended_at'] = $event['timestamp'];
         }
 
         foreach ($event['tags'] as $tag) {

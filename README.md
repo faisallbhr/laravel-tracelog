@@ -197,8 +197,11 @@ TRACELOG_LOG_MAX_SIZE=10485760
 Files are written under `storage/logs/` with the daily filename pattern
 `tracelog-YYYY-MM-DD-N.log`, where `N` is the size-part number for that day.
 Each part is limited to 10 MiB by default and retention keeps the configured
-number of recent days. Filenames use the application's `app.timezone`; event
-timestamps are ISO 8601 UTC timestamps with microseconds.
+number of recent days. An individual event larger than the limit is kept intact
+in its own part, so that part is the one exception to the size limit. A small
+lock file coordinates rotation between concurrent workers. Filenames use the
+application's `app.timezone`; event timestamps are ISO 8601 UTC timestamps with
+microseconds.
 
 An update produces a structured entry like this:
 
@@ -218,9 +221,9 @@ The package registers an internal, read-only `TraceLog\Internal\TraceReader`
 for future UI integrations. It can list valid daily files, paginate trace
 summaries for one file, and retrieve a trace by the pair `(filename, trace_id)`.
 It streams files, skips malformed JSONL records, rejects path traversal and
-symlinks, and enforces a pagination limit from `config/tracelog.php`. The
-writer's 10 MiB parts bound each reader operation. It does not query Eloquent
-models or expose routes.
+symlinks, and enforces a pagination limit from `config/tracelog.php`. Trace
+lookup reads all size parts for the requested date, while summaries remain
+per-file. It does not query Eloquent models or expose routes.
 
 Laravel emits companion events for soft-delete operations. By default,
 `restore()` logs both `updated` and `restored`, while `forceDelete()` logs both

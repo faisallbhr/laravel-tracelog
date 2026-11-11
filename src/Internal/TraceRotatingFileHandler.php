@@ -4,9 +4,11 @@ namespace TraceLog\Internal;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use InvalidArgumentException;
 use Monolog\Handler\StreamHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
+use RuntimeException;
 
 /** Rotates JSONL output by day and size while retaining recent days. */
 final class TraceRotatingFileHandler extends StreamHandler
@@ -21,12 +23,12 @@ final class TraceRotatingFileHandler extends StreamHandler
         private readonly int $retention_days,
         private readonly DateTimeZone $timezone
     ) {
+        if ($this->max_bytes < 1) {
+            throw new InvalidArgumentException('TraceLog maximum part size must be greater than zero.');
+        }
+
         $this->date = $this->today();
         $this->part = $this->latestPart($this->date);
-
-        if (is_file($this->path()) && filesize($this->path()) >= $this->max_bytes) {
-            $this->part++;
-        }
 
         parent::__construct($this->path(), Level::Debug, true, null, true);
     }
@@ -34,21 +36,59 @@ final class TraceRotatingFileHandler extends StreamHandler
     protected function write(LogRecord $record): void
     {
         $formatted = (string) $record->formatted;
-        $date = $this->today();
 
-        if ($date !== $this->date) {
-            $this->date = $date;
-            $this->part = $this->latestPart($date);
-            $this->close();
-            $this->url = $this->path();
-        } elseif (is_file($this->path()) && filesize($this->path()) + strlen($formatted) > $this->max_bytes) {
-            $this->part++;
-            $this->close();
-            $this->url = $this->path();
+        $this->ensureDirectory();
+        $lock_path = $this->base_path.'.lock';
+        $lock = fopen($lock_path, 'c');
+
+        if ($lock === false || ! flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+
+            throw new RuntimeException('Unable to lock the TraceLog rotation file.');
         }
 
-        parent::write($record);
-        $this->prune();
+        try {
+            $this->rotateIfNeeded(strlen($formatted));
+            if (file_put_contents($this->path(), $formatted, FILE_APPEND | LOCK_EX) === false) {
+                throw new RuntimeException('Unable to write the TraceLog file.');
+            }
+            $this->prune();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private function rotateIfNeeded(int $formatted_size): void
+    {
+        $date = $this->today();
+        $latest_part = $this->latestPart($date);
+
+        if ($date !== $this->date || $latest_part > $this->part) {
+            $this->date = $date;
+            $this->part = $latest_part;
+        }
+
+        $path = $this->path();
+        clearstatcache(true, $path);
+        $current_size = is_file($path) ? (int) filesize($path) : 0;
+
+        if ($current_size > 0 && $current_size + $formatted_size > $this->max_bytes) {
+            $this->part++;
+        }
+
+        // An oversized event gets its own part so JSONL records remain atomic.
+    }
+
+    private function ensureDirectory(): void
+    {
+        $directory = dirname($this->base_path);
+
+        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException('Unable to create the TraceLog directory.');
+        }
     }
 
     private function path(): string
