@@ -74,6 +74,38 @@ class EloquentEventListenerTest extends TestCase
         ], $context['changes']['name']);
     }
 
+    public function test_tags_and_trace_id_are_added_to_events(): void
+    {
+        TraceLog::watch()->tags([' checkout ', 'inventory', 'checkout']);
+
+        $first = TraceTestModel::create(['name' => 'First']);
+        $first_context = $this->readLogContext();
+        $first->update(['name' => 'Second']);
+        $second_context = $this->readLogContext();
+
+        $this->assertSame(8, strlen($first_context['trace_id']));
+        $this->assertSame($first_context['trace_id'], $second_context['trace_id']);
+        $this->assertSame(['checkout', 'inventory'], $first_context['tags']);
+        $this->assertSame($first_context['tags'], $second_context['tags']);
+    }
+
+    public function test_multiple_models_share_trace_id_and_tags(): void
+    {
+        TraceLog::watch()->tags(['checkout', 'inventory']);
+
+        TraceTestModel::create(['name' => 'Order changed']);
+        $order_context = $this->readLogContext();
+
+        OtherTraceTestModel::create(['name' => 'Stock changed']);
+        $stock_context = $this->readLogContext();
+
+        $this->assertSame($order_context['trace_id'], $stock_context['trace_id']);
+        $this->assertSame(['checkout', 'inventory'], $order_context['tags']);
+        $this->assertSame($order_context['tags'], $stock_context['tags']);
+        $this->assertSame(TraceTestModel::class, $order_context['model']);
+        $this->assertSame(OtherTraceTestModel::class, $stock_context['model']);
+    }
+
     public function test_updated_event(): void
     {
         $model = TraceTestModel::create([
@@ -187,6 +219,21 @@ class EloquentEventListenerTest extends TestCase
         $context = $this->readLogContext();
 
         $this->assertSame(['name', 'status'], array_keys($context['changes']));
+    }
+
+    public function test_tags_survive_model_specific_filter_precedence(): void
+    {
+        $model = TraceTestModel::create(['name' => 'Before', 'status' => 'pending']);
+
+        TraceLog::watch()->tags(['checkout'])->only(['status']);
+        TraceLog::watch(TraceTestModel::class)->only(['name']);
+
+        $model->update(['name' => 'After', 'status' => 'paid']);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(['checkout'], $context['tags']);
+        $this->assertSame(['name'], array_keys($context['changes']));
     }
 
     public function test_update_is_skipped_when_filter_removes_all_changes(): void
@@ -368,6 +415,18 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame(['name'], array_keys($this->readLogContext()['changes']));
     }
 
+    public function test_repeated_scope_registration_preserves_trace_tags(): void
+    {
+        $model = TraceTestModel::create(['name' => 'Before']);
+
+        TraceLog::watch(TraceTestModel::class)->tags(['checkout'])->only(['status']);
+        TraceLog::watch(TraceTestModel::class)->only(['name']);
+
+        $model->update(['name' => 'After']);
+
+        $this->assertSame(['checkout'], $this->readLogContext()['tags']);
+    }
+
     public function test_unwatched_model_is_not_logged(): void
     {
         TraceTestModel::create([
@@ -400,6 +459,38 @@ class EloquentEventListenerTest extends TestCase
         $model->update(['name' => 'After']);
 
         $this->assertSame('updated', $this->readLogContext()['event']);
+    }
+
+    public function test_stop_resets_trace_metadata(): void
+    {
+        TraceLog::watch()->tags(['first']);
+        TraceTestModel::create(['name' => 'First']);
+        $first = $this->readLogContext();
+
+        TraceLog::stop();
+        TraceLog::watch()->tags(['second']);
+        TraceTestModel::create(['name' => 'Second']);
+        $second = $this->readLogContext();
+
+        $this->assertNotSame($first['trace_id'], $second['trace_id']);
+        $this->assertSame(['second'], $second['tags']);
+    }
+
+    public function test_scoped_lifecycle_does_not_leak_trace_metadata(): void
+    {
+        TraceLog::watch()->tags(['first']);
+        TraceTestModel::create(['name' => 'First']);
+        $first = $this->readLogContext();
+
+        $this->app->forgetScopedInstances();
+
+        TraceLog::watch()->tags(['second']);
+        TraceTestModel::create(['name' => 'Second']);
+        $second = $this->readLogContext();
+
+        $this->assertNotSame($first['trace_id'], $second['trace_id']);
+        $this->assertSame(['first'], $first['tags']);
+        $this->assertSame(['second'], $second['tags']);
     }
 
     private function readLogContext(): array

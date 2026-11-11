@@ -5,6 +5,7 @@ namespace TraceLog\Tests;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\WatchRules;
 use TraceLog\WatchConfiguration;
 
@@ -144,5 +145,23 @@ class WatchConfigurationTest extends TestCase
         $this->expectExceptionMessage('TraceLog attribute names must be strings');
 
         (new WatchConfiguration)->only(['status', 123]);
+    }
+
+    public function test_tags_are_normalized_and_chainable(): void
+    {
+        $context = new TraceContext;
+
+        $configuration = new WatchConfiguration(new WatchRules, $context);
+
+        $this->assertSame($configuration, $configuration->tags([' checkout ', '', 'checkout', 'Inventory'])->tags(['inventory', 'sales']));
+        $this->assertSame(['checkout', 'Inventory', 'inventory', 'sales'], $context->metadata()['tags']);
+    }
+
+    public function test_invalid_tag_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('TraceLog tags must be strings');
+
+        (new WatchConfiguration)->tags(['checkout', 123]);
     }
 }

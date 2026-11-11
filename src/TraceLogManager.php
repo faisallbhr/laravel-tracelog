@@ -4,6 +4,7 @@ namespace TraceLog;
 
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\WatchRegistry;
 
 /**
@@ -13,9 +14,12 @@ class TraceLogManager
 {
     private readonly WatchRegistry $registry;
 
-    public function __construct(?WatchRegistry $registry = null)
+    private readonly TraceContext $context;
+
+    public function __construct(?WatchRegistry $registry = null, ?TraceContext $context = null)
     {
         $this->registry = $registry ?? new WatchRegistry;
+        $this->context = $context ?? new TraceContext;
     }
 
     /**
@@ -30,7 +34,7 @@ class TraceLogManager
     public function watch(Model|string|null $model = null): WatchConfiguration
     {
         if ($model === null) {
-            return new WatchConfiguration($this->registry->watchAll());
+            return new WatchConfiguration($this->registry->watchAll(), $this->context);
         }
 
         if (is_string($model) && ! is_a($model, Model::class, true)) {
@@ -38,14 +42,14 @@ class TraceLogManager
         }
 
         if (is_string($model)) {
-            return new WatchConfiguration($this->registry->watchClass($model));
+            return new WatchConfiguration($this->registry->watchClass($model), $this->context);
         }
 
         if ($model->getKey() === null) {
             throw new InvalidArgumentException('Cannot watch an unsaved Eloquent model.');
         }
 
-        return new WatchConfiguration($this->registry->watchRecord($model));
+        return new WatchConfiguration($this->registry->watchRecord($model), $this->context);
     }
 
     /**
@@ -62,5 +66,6 @@ class TraceLogManager
     public function stop(): void
     {
         $this->registry->stop();
+        $this->context->reset();
     }
 }

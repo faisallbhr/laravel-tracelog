@@ -90,6 +90,22 @@ An empty `only([])` allows no attributes, while an empty `except([])` excludes
 nothing. An `updated` event is not logged when filtering removes all of its
 changes.
 
+### Trace IDs and tags
+
+Events emitted in the same application scope share a lazily generated
+`trace_id`. Add trace-level tags with `tags()`; repeated calls are additive,
+trim whitespace, ignore empty values, and preserve first-seen spelling and
+order:
+
+```php
+TraceLog::watch()
+    ->tags(['sales-order', ' inventory ', 'sales-order']);
+```
+
+Each logged event includes `trace_id` and `tags`. Calling `stop()` clears both
+the watches and the active trace metadata. Models using `Traceable` create an
+untagged trace lazily when they emit their first event.
+
 ### Filter events
 
 Select events using the existing `ModelEvent` enum:
@@ -160,7 +176,7 @@ TraceLog::stop();
 The supported public API consists of:
 
 - `TraceLog::watch()`, `TraceLog::stop()`, and `TraceLog::isWatching()`
-- `only()`, `except()`, `events()`, and `sensitive()` on a watch configuration
+- `only()`, `except()`, `events()`, `sensitive()`, and `tags()` on a watch configuration
 - the `ModelEvent` enum
 - the `Traceable` trait
 
@@ -176,6 +192,8 @@ An update produces a structured entry like this:
 
 ```text
 [2026-11-10 13:57:06] local.DEBUG: {
+    "trace_id": "example-trace-id",
+    "tags": ["sales-order"],
     "event": "updated",
     "model": "App\\Models\\Order",
     "id": 123,

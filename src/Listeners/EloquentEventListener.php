@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\WatchRegistry;
 use TraceLog\Internal\WatchRules;
 use WeakMap;
@@ -19,7 +20,8 @@ class EloquentEventListener
     private WeakMap $previous;
 
     public function __construct(
-        private readonly WatchRegistry $registry
+        private readonly WatchRegistry $registry,
+        private readonly TraceContext $trace_context
     ) {
         $this->previous = new WeakMap;
     }
@@ -43,6 +45,7 @@ class EloquentEventListener
         }
 
         $context = [
+            ...$this->trace_context->metadata(),
             'event' => $event->value,
             'model' => $model::class,
             'id' => $model->getKey(),
