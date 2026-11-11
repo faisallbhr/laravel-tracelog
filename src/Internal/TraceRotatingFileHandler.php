@@ -5,13 +5,13 @@ namespace TraceLog\Internal;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
-use Monolog\Handler\StreamHandler;
+use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
 use RuntimeException;
 
 /** Rotates JSONL output by day and size while retaining recent days. */
-final class TraceRotatingFileHandler extends StreamHandler
+final class TraceRotatingFileHandler extends AbstractProcessingHandler
 {
     private string $date;
 
@@ -30,7 +30,7 @@ final class TraceRotatingFileHandler extends StreamHandler
         $this->date = $this->today();
         $this->part = $this->latestPart($this->date);
 
-        parent::__construct($this->path(), Level::Debug, true, null, true);
+        parent::__construct(Level::Debug, true);
     }
 
     protected function write(LogRecord $record): void

@@ -52,16 +52,41 @@ final class TraceReader
     public function traces(string $filename, int $page = 1, int $per_page = 25, ?string $tag = null): array
     {
         $this->validatePagination($page, $per_page);
+        $summaries = $this->summaries([$filename]);
+
+        return $this->paginateSummaries($summaries, $page, $per_page, $tag);
+    }
+
+    /**
+     * @return array{page: int, per_page: int, total: int, has_more: bool, traces: list<array<string, mixed>>}
+     */
+    public function tracesForDate(string $date, int $page = 1, int $per_page = 25, ?string $tag = null): array
+    {
+        $this->validatePagination($page, $per_page);
+        $this->validateDate($date);
+
+        return $this->paginateSummaries($this->summaries($this->filesForDateValue($date)), $page, $per_page, $tag);
+    }
+
+    /** @param list<string> $filenames @return list<array<string, mixed>> */
+    private function summaries(array $filenames): array
+    {
         $groups = [];
 
-        foreach ($this->records($filename) as $event) {
-            $trace_id = $event['trace_id'];
-            $groups[$trace_id] ??= $this->newSummary($filename, $trace_id);
-            $this->addToSummary($groups[$trace_id], $event);
+        foreach ($filenames as $filename) {
+            foreach ($this->records($filename) as $event) {
+                $trace_id = $event['trace_id'];
+                $groups[$trace_id] ??= $this->newSummary($filename, $trace_id);
+                $this->addToSummary($groups[$trace_id], $event, $filename);
+            }
         }
 
-        $summaries = array_values($groups);
+        return array_values($groups);
+    }
 
+    /** @param list<array<string, mixed>> $summaries */
+    private function paginateSummaries(array $summaries, int $page, int $per_page, ?string $tag): array
+    {
         if ($tag !== null) {
             $summaries = array_values(array_filter(
                 $summaries,
@@ -107,7 +132,7 @@ final class TraceReader
                 }
 
                 $summary ??= $this->newSummary($filename, $trace_id);
-                $this->addToSummary($summary, $event);
+                $this->addToSummary($summary, $event, $part_filename);
 
                 $events[] = $event;
             }
@@ -186,8 +211,13 @@ final class TraceReader
     {
         $this->pathFor($filename);
         preg_match(self::FILENAME_PATTERN, $filename, $matches);
-        $date = $matches[1];
 
+        return $this->filesForDateValue($matches[1]);
+    }
+
+    /** @return list<string> */
+    private function filesForDateValue(string $date): array
+    {
         $files = array_values(array_filter(
             $this->files(),
             fn (string $candidate): bool => preg_match(self::FILENAME_PATTERN, $candidate, $candidate_matches) === 1
@@ -197,6 +227,13 @@ final class TraceReader
         usort($files, fn (string $left, string $right): int => strnatcmp($left, $right));
 
         return $files;
+    }
+
+    private function validateDate(string $date): void
+    {
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/D', $date) !== 1 || ! $this->isValidFilename('tracelog-'.$date.'-1.log')) {
+            throw new InvalidArgumentException('Invalid TraceLog date.');
+        }
     }
 
     /** @param array<string, mixed> $event */
@@ -263,14 +300,19 @@ final class TraceReader
             'event_count' => 0,
             'tags' => [],
             'models' => [],
+            'files' => [],
             '_earliest_at' => null,
             '_latest_at' => null,
         ];
     }
 
     /** @param array<string, mixed> $summary @param array<string, mixed> $event */
-    private function addToSummary(array &$summary, array $event): void
+    private function addToSummary(array &$summary, array $event, string $filename): void
     {
+        if (! in_array($filename, $summary['files'], true)) {
+            $summary['files'][] = $filename;
+        }
+
         $summary['event_count']++;
         $timestamp = new DateTimeImmutable($event['timestamp']);
 

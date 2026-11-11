@@ -11,6 +11,7 @@ All notable changes to Laravel TraceLog are documented in this file.
 - Partition JSONL output by configurable maximum size.
 - Add an internal streaming trace reader with safe file discovery and pagination.
 - Coordinate size rotation between concurrent writers and read traces across parts of the same day.
+- Add date-level trace summaries across all size parts.
 
 ## [1.0.0] - 2026-11-10
 

@@ -221,9 +221,11 @@ The package registers an internal, read-only `TraceLog\Internal\TraceReader`
 for future UI integrations. It can list valid daily files, paginate trace
 summaries for one file, and retrieve a trace by the pair `(filename, trace_id)`.
 It streams files, skips malformed JSONL records, rejects path traversal and
-symlinks, and enforces a pagination limit from `config/tracelog.php`. Trace
-lookup reads all size parts for the requested date, while summaries remain
-per-file. It does not query Eloquent models or expose routes.
+symlinks, and enforces a pagination limit from `config/tracelog.php`.
+`tracesForDate($date)` groups each trace once across all size parts for that
+date; `traces($filename)` remains a per-file listing. Trace lookup reads all
+size parts for the requested date. A trace crossing midnight remains split
+between dates. It does not query Eloquent models or expose routes.
 
 Laravel emits companion events for soft-delete operations. By default,
 `restore()` logs both `updated` and `restored`, while `forceDelete()` logs both

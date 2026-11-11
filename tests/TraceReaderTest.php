@@ -80,6 +80,26 @@ class TraceReaderTest extends TestCase
         $this->assertSame(1, $this->reader()->trace('tracelog-2026-11-12-1.log', 'aaaabbbb')['event_count']);
     }
 
+    public function test_traces_for_date_groups_each_trace_once_across_parts(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', implode("\n", [
+            $this->event('aaaabbbb', '2026-11-11T00:00:00.000000+00:00', ['checkout'], 'Order'),
+            $this->event('ccccdddd', '2026-11-11T00:00:01.000000+00:00', [], 'Stock'),
+        ])."\n");
+        $this->write('tracelog-2026-11-11-2.log', $this->event('aaaabbbb', '2026-11-11T00:00:02.000000+00:00', ['inventory'], 'Stock')."\n");
+
+        $result = $this->reader()->tracesForDate('2026-11-11');
+        $trace = array_values(array_filter($result['traces'], fn (array $summary): bool => $summary['trace_id'] === 'aaaabbbb'))[0];
+
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(2, $trace['event_count']);
+        $this->assertSame([
+            'tracelog-2026-11-11-1.log',
+            'tracelog-2026-11-11-2.log',
+        ], $trace['files']);
+        $this->assertSame(['checkout', 'inventory'], $trace['tags']);
+    }
+
     public function test_summary_uses_minimum_and_maximum_event_timestamps(): void
     {
         $this->write('tracelog-2026-11-11-1.log', implode("\n", [
