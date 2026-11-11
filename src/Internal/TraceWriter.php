@@ -5,14 +5,13 @@ namespace TraceLog\Internal;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Config\Repository;
-use Monolog\Handler\RotatingFileHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
 
 /** Emits trace payloads using the configured output. */
 final class TraceWriter
 {
-    private ?RotatingFileHandler $handler = null;
+    private ?TraceRotatingFileHandler $handler = null;
 
     public function __construct(private readonly Repository $config) {}
 
@@ -34,17 +33,12 @@ final class TraceWriter
         ));
     }
 
-    private function createHandler(): RotatingFileHandler
+    private function createHandler(): TraceRotatingFileHandler
     {
-        $handler = new RotatingFileHandler(
+        $handler = new TraceRotatingFileHandler(
             storage_path('logs/tracelog.log'),
+            (int) $this->config->get('tracelog.logging.max_size', 10 * 1024 * 1024),
             (int) $this->config->get('tracelog.logging.days', 7),
-            Level::Debug,
-            true,
-            null,
-            false,
-            RotatingFileHandler::FILE_PER_DAY,
-            '{filename}-{date}',
             new DateTimeZone((string) $this->config->get('app.timezone', 'UTC'))
         );
         $handler->setFormatter(new TraceJsonFormatter);

@@ -18,7 +18,11 @@ class EloquentEventListenerTest extends TestCase
     {
         parent::setUp();
 
-        $this->log_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'.log');
+        $this->log_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'-1.log');
+
+        foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
+            unlink($path);
+        }
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -39,6 +43,10 @@ class EloquentEventListenerTest extends TestCase
     protected function tearDown(): void
     {
         TraceLog::stop();
+
+        foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
+            unlink($path);
+        }
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -89,6 +97,22 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame(['checkout'], $context['tags']);
         $this->assertSame('created', $context['event']);
         $this->assertSame(TraceTestModel::class, $context['model']);
+    }
+
+    public function test_writer_creates_a_new_part_when_max_size_is_reached(): void
+    {
+        config(['tracelog.logging.max_size' => 1]);
+        TraceLog::watch();
+
+        TraceTestModel::create(['name' => 'First']);
+        TraceTestModel::create(['name' => 'Second']);
+
+        $second_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'-2.log');
+
+        $this->assertFileExists($this->log_path);
+        $this->assertFileExists($second_path);
+        $this->assertCount(1, file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+        $this->assertCount(1, file($second_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
     }
 
     public function test_each_jsonl_line_is_an_independent_json_object(): void
