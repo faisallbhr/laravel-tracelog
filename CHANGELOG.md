@@ -7,6 +7,7 @@ All notable changes to Laravel TraceLog are documented in this file.
 ### Added
 
 - Add scoped trace IDs and additive trace tags to model event logs.
+- Make daily JSONL output the default, with timestamps and configurable retention.
 
 ## [1.0.0] - 2026-11-10
 

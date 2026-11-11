@@ -18,15 +18,7 @@ class EloquentEventListenerTest extends TestCase
     {
         parent::setUp();
 
-        $this->log_path = storage_path('logs/tracelog-test.log');
-
-        config([
-            'logging.default' => 'tracelog-test',
-            'logging.channels.tracelog-test' => [
-                'driver' => 'single',
-                'path' => $this->log_path,
-            ],
-        ]);
+        $this->log_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'.log');
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -72,6 +64,48 @@ class EloquentEventListenerTest extends TestCase
             'old' => null,
             'new' => 'Before',
         ], $context['changes']['name']);
+    }
+
+    public function test_writes_one_timestamped_json_object_per_line(): void
+    {
+        config([
+            'tracelog.logging.days' => 2,
+        ]);
+
+        TraceLog::watch()->tags(['checkout']);
+        TraceTestModel::create(['name' => 'Before']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertFileExists($this->log_path);
+        $this->assertCount(1, $lines);
+
+        $context = json_decode($lines[0], true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertMatchesRegularExpression(
+            '/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\+00:00$/',
+            $context['timestamp']
+        );
+        $this->assertSame(['checkout'], $context['tags']);
+        $this->assertSame('created', $context['event']);
+        $this->assertSame(TraceTestModel::class, $context['model']);
+    }
+
+    public function test_each_jsonl_line_is_an_independent_json_object(): void
+    {
+        TraceLog::watch();
+
+        $model = TraceTestModel::create(['name' => 'Before']);
+        $model->update(['name' => 'After']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertCount(2, $lines);
+
+        foreach ($lines as $line) {
+            $this->assertStringNotContainsString('DEBUG:', $line);
+            $this->assertIsArray(json_decode($line, true, 512, JSON_THROW_ON_ERROR));
+        }
     }
 
     public function test_tags_and_trace_id_are_added_to_events(): void
@@ -178,7 +212,7 @@ class EloquentEventListenerTest extends TestCase
         $log = file_get_contents($this->log_path);
 
         $this->assertSame(2, substr_count($log, '"event":'));
-        $this->assertStringContainsString('"event": "deleted"', $log);
+        $this->assertStringContainsString('"event":"deleted"', $log);
         $this->assertSame('forceDeleted', $context['event']);
         $this->assertArrayNotHasKey('changes', $context);
     }
@@ -282,6 +316,20 @@ class EloquentEventListenerTest extends TestCase
         $model->delete();
 
         $this->assertSame('deleted', $this->readLogContext()['event']);
+    }
+
+    public function test_filtered_event_does_not_append_a_jsonl_line(): void
+    {
+        TraceLog::watch();
+        $model = TraceTestModel::create(['name' => 'Before']);
+
+        TraceLog::watch($model)->events([ModelEvent::Deleted]);
+        $model->update(['name' => 'After']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertCount(1, $lines);
+        $this->assertSame('created', json_decode($lines[0], true, 512, JSON_THROW_ON_ERROR)['event']);
     }
 
     public function test_empty_event_filter_disables_watch_logging(): void
@@ -497,13 +545,9 @@ class EloquentEventListenerTest extends TestCase
     {
         $this->assertFileExists($this->log_path);
 
-        $content = file_get_contents($this->log_path);
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-        $start = strrpos($content, 'DEBUG: ');
-
-        $this->assertNotFalse($start);
-
-        return json_decode(substr($content, $start + 7), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($lines[array_key_last($lines)], true, 512, JSON_THROW_ON_ERROR);
     }
 
     public function test_event_contains_source(): void
@@ -532,6 +576,8 @@ class EloquentEventListenerTest extends TestCase
             'Automatically Traced',
             $context['changes']['name']['new']
         );
+        $this->assertSame(8, strlen($context['trace_id']));
+        $this->assertSame([], $context['tags']);
     }
 
     public function test_traceable_model_redacts_sensitive_attributes(): void

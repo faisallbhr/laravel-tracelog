@@ -185,27 +185,29 @@ are not part of the supported public API.
 
 ## Log output
 
-TraceLog writes at the `debug` level through Laravel's default log channel, so
-the destination follows your application's logging configuration.
+TraceLog writes JSON Lines files through a dedicated daily-rotated Monolog
+handler. Configure retention through `config/tracelog.php` or an environment
+variable:
+
+```env
+TRACELOG_LOG_DAYS=7
+```
+
+Files are written under `storage/logs/` with the daily filename pattern
+`tracelog-YYYY-MM-DD.log`. Rotation uses Monolog's daily rotating handler and
+keeps the configured number of files. Filenames use the application's
+`app.timezone`; event timestamps are ISO 8601 UTC timestamps with microseconds.
 
 An update produces a structured entry like this:
 
-```text
-[2026-11-10 13:57:06] local.DEBUG: {
-    "trace_id": "example-trace-id",
-    "tags": ["sales-order"],
-    "event": "updated",
-    "model": "App\\Models\\Order",
-    "id": 123,
-    "changes": {
-        "status": {
-            "old": "draft",
-            "new": "paid"
-        }
-    },
-    "source": "/path/to/app/Http/Controllers/OrderController.php:42"
-}
+```json
+{"timestamp":"2026-11-11T14:15:30.123456+00:00","trace_id":"a4c91e7b","tags":["sales-order"],"event":"updated","model":"App\\Models\\Order","id":123,"changes":{"status":{"old":"draft","new":"paid"}},"source":"/path/to/app/Http/Controllers/OrderController.php:42"}
 ```
+
+Each physical line contains exactly one JSON object and does not include a text
+log prefix. The future reader should enumerate only validated
+`tracelog-YYYY-MM-DD.log` filenames under `storage/logs/`; a trace can span
+daily files and an eight-character trace ID is not globally unique.
 
 Laravel emits companion events for soft-delete operations. By default,
 `restore()` logs both `updated` and `restored`, while `forceDelete()` logs both
