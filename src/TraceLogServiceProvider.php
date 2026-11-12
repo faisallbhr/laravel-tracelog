@@ -28,7 +28,12 @@ class TraceLogServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/tracelog.php', 'tracelog');
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'tracelog');
 
-        $this->app->scoped(WatchRegistry::class);
+        $this->app->scoped(
+            WatchRegistry::class,
+            fn ($app): WatchRegistry => new WatchRegistry(
+                (array) $app['config']->get('tracelog.sensitive_attributes', [])
+            )
+        );
         $this->app->scoped(TraceContext::class);
         $this->app->scoped(TraceReader::class);
         $this->app->scoped(TraceWriter::class);

@@ -8,7 +8,6 @@ use TraceLog\Enums\ModelEvent;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceWriter;
 use TraceLog\Internal\WatchRegistry;
-use TraceLog\Internal\WatchRules;
 use WeakMap;
 
 /**
@@ -38,7 +37,7 @@ class EloquentEventListener
             return;
         }
 
-        $rules ??= new WatchRules;
+        $rules ??= $this->registry->newRules();
         $this->capturePrevious($event, $model);
 
         if (! $rules->includes($event)) {

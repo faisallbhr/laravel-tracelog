@@ -124,10 +124,22 @@ logging for that watch.
 
 ### Protect sensitive attributes
 
-TraceLog always redacts `password`, `password_confirmation`, `remember_token`,
-`api_token`, `access_token`, `refresh_token`, `secret`, `secret_key`, and
-`private_key`. Matching is case-insensitive, including when an attribute is
-explicitly selected with `only()`.
+TraceLog redacts the attributes listed in `config/tracelog.php` under
+`sensitive_attributes`. The default list includes `password`,
+`password_confirmation`, `remember_token`, `api_token`, `access_token`,
+`refresh_token`, `secret`, `secret_key`, and `private_key`. Matching is
+case-insensitive, including when an attribute is explicitly selected with
+`only()`.
+
+Add application-specific attributes to that list:
+
+```php
+'sensitive_attributes' => [
+    'password',
+    'pin',
+    'security_answer',
+],
+```
 
 Add application-specific sensitive attributes with `sensitive()`:
 
@@ -257,8 +269,8 @@ event is needed.
 ## Important
 
 Keep TraceLog as a development dependency. Default redaction protects common
-credential names, but application-specific sensitive attributes must be added
-with `sensitive()`.
+credential names. Configure application-wide attributes in `config/tracelog.php`,
+or use `sensitive()` for one watch.
 
 Mass updates performed through an Eloquent query do not dispatch model events
 and therefore are not traced:

@@ -3,6 +3,27 @@
 return [
     /*
     |--------------------------------------------------------------------------
+    | Sensitive Attributes
+    |--------------------------------------------------------------------------
+    |
+    | Attribute names whose values are replaced with [REDACTED] in trace
+    | changes. Matching is case-insensitive.
+    |
+    */
+    'sensitive_attributes' => [
+        'password',
+        'password_confirmation',
+        'remember_token',
+        'api_token',
+        'access_token',
+        'refresh_token',
+        'secret',
+        'secret_key',
+        'private_key',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Logging
     |--------------------------------------------------------------------------
     |

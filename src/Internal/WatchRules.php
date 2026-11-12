@@ -7,17 +7,10 @@ use TraceLog\Enums\ModelEvent;
 /** Stores and evaluates the rules behind one watch registration. */
 final class WatchRules
 {
-    private const SENSITIVE_ATTRIBUTES = [
-        'password',
-        'password_confirmation',
-        'remember_token',
-        'api_token',
-        'access_token',
-        'refresh_token',
-        'secret',
-        'secret_key',
-        'private_key',
-    ];
+    /** @param list<string> $default_sensitive_attributes */
+    public function __construct(
+        private readonly array $default_sensitive_attributes = []
+    ) {}
 
     /** @var list<string>|null */
     private ?array $only = null;
@@ -71,7 +64,7 @@ final class WatchRules
         }
 
         $changes = array_diff_key($changes, array_flip($this->except));
-        $sensitive = array_map('strtolower', [...self::SENSITIVE_ATTRIBUTES, ...$this->sensitive]);
+        $sensitive = array_map('strtolower', [...$this->default_sensitive_attributes, ...$this->sensitive]);
 
         foreach (array_keys($changes) as $attribute) {
             if (in_array(strtolower($attribute), $sensitive, true)) {

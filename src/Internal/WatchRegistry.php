@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 /** Stores active watch rules for the current application scope. */
 final class WatchRegistry
 {
+    /** @param list<string> $default_sensitive_attributes */
+    public function __construct(
+        private readonly array $default_sensitive_attributes = []
+    ) {}
+
     private ?WatchRules $watch_all = null;
 
     /** @var array<class-string<Model>, WatchRules> */
@@ -17,13 +22,13 @@ final class WatchRegistry
 
     public function watchAll(): WatchRules
     {
-        return $this->watch_all = new WatchRules;
+        return $this->watch_all = $this->newRules();
     }
 
     /** @param class-string<Model> $model */
     public function watchClass(string $model): WatchRules
     {
-        return $this->watched_classes[$model] = new WatchRules;
+        return $this->watched_classes[$model] = $this->newRules();
     }
 
     public function watchRecord(Model $model): WatchRules
@@ -32,7 +37,12 @@ final class WatchRegistry
             $model->getConnectionName() ?? ''
         ][
             (string) $model->getKey()
-        ] = new WatchRules;
+        ] = $this->newRules();
+    }
+
+    public function newRules(): WatchRules
+    {
+        return new WatchRules($this->default_sensitive_attributes);
     }
 
     public function rulesFor(Model $model): ?WatchRules
