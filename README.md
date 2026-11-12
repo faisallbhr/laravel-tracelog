@@ -34,6 +34,23 @@ composer require --dev faisallbhr/laravel-tracelog
 Laravel discovers the service provider and facade automatically. No config
 file or manual provider registration is required.
 
+Publish the package configuration when you need to customize the defaults:
+
+```bash
+php artisan vendor:publish --tag=tracelog-config
+```
+
+If you plan to use the TraceLog Viewer, create and register its application
+provider:
+
+```bash
+php artisan tracelog:install
+```
+
+This creates `app/Providers/TraceLogServiceProvider.php`. The package provider
+is already auto-discovered; the application provider is only needed for
+application-specific configuration, such as viewer authorization.
+
 ## Usage
 
 Call `watch()` before the model operation you want to inspect.
