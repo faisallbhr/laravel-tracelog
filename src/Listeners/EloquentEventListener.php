@@ -120,9 +120,16 @@ class EloquentEventListener
         $changes = [];
 
         foreach (array_keys($old + $new) as $attribute) {
+            $old_value = $old[$attribute] ?? null;
+            $new_value = $new[$attribute] ?? null;
+
+            if ($old_value === null && $new_value === null) {
+                continue;
+            }
+
             $changes[$attribute] = [
-                'old' => $old[$attribute] ?? null,
-                'new' => $new[$attribute] ?? null,
+                'old' => $old_value,
+                'new' => $new_value,
             ];
         }
 
