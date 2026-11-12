@@ -14,40 +14,50 @@
       data-traces-url="{{ route('tracelog.api.traces') }}"
       data-trace-url-template="{{ route('tracelog.api.trace', ['trace_id' => '__TRACE_ID__']) }}"
       data-page-size="{{ config('tracelog.reader.page_size', 25) }}">
-    <header class="masthead">
-        <h1>TraceLog</h1>
-        <p class="date-note">Selected day<strong id="selected-date">—</strong></p>
-    </header>
-
-    <section class="filters" aria-label="Trace filters">
-        <label for="trace-date">Date <span class="select-wrap"><select id="trace-date"></select></span></label>
-        <label for="trace-tag">Tag <input id="trace-tag" type="text" autocomplete="off" placeholder="Filter by tag, e.g. checkout"></label>
-        <div class="filter-actions">
-            <button class="button" id="trace-refresh" type="button">Refresh traces</button>
-            <details class="settings">
-            <summary aria-label="Open display settings" title="Display settings">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h6m4 0h6M4 12h2m4 0h10M4 18h10m4 0h2"/>
-                    <circle cx="12" cy="6" r="2"/>
-                    <circle cx="7" cy="12" r="2"/>
-                    <circle cx="15" cy="18" r="2"/>
-                </svg>
-                <span class="sr-only">Display settings</span>
-            </summary>
-            <div class="settings-menu">
-                <fieldset>
-                    <legend>Theme</legend>
-                    <label class="theme-option"><input type="radio" name="theme" value="system"> System</label>
-                    <label class="theme-option"><input type="radio" name="theme" value="light"> Light</label>
-                    <label class="theme-option"><input type="radio" name="theme" value="dark"> Dark</label>
-                </fieldset>
+    <div class="viewer-layout">
+        <aside class="trace-sidebar" aria-label="Log dates">
+            <h1>TraceLog</h1>
+            <div class="sidebar-heading">
+                <h2>Log dates</h2>
+                <span id="date-count"></span>
             </div>
-            </details>
-        </div>
-    </section>
+            <div id="trace-date" class="date-list" role="listbox" aria-label="Log dates"></div>
+        </aside>
 
-    <p id="trace-status" class="status" role="status" aria-live="polite"></p>
-    <section id="trace-list" class="trace-list" aria-label="Trace results" aria-live="polite"></section>
-    <nav id="trace-pagination" class="pagination" aria-label="Trace pages"></nav>
+        <section class="trace-content">
+            <section class="filters" aria-label="Trace filters">
+                <label for="trace-tag">Tag <input id="trace-tag" type="text" autocomplete="off" placeholder="Filter by tag, e.g. checkout"></label>
+                <div class="filter-actions">
+                    <button class="button refresh-button" id="trace-refresh" type="button" title="Refresh traces" aria-label="Refresh traces">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 11a8 8 0 0 0-14.8-4L3 10m0 0h4M3 10V6M4 13a8 8 0 0 0 14.8 4L21 14m0 0h-4m4 0v4"/>
+                        </svg>
+                    </button>
+                    <details class="settings">
+                    <summary aria-label="Open display settings" title="Display settings">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 6h6m4 0h6M4 12h2m4 0h10M4 18h10m4 0h2"/>
+                            <circle cx="12" cy="6" r="2"/>
+                            <circle cx="7" cy="12" r="2"/>
+                            <circle cx="15" cy="18" r="2"/>
+                        </svg>
+                        <span class="sr-only">Display settings</span>
+                    </summary>
+                    <div class="settings-menu">
+                        <fieldset>
+                            <legend>Theme</legend>
+                            <label class="theme-option"><input type="radio" name="theme" value="system"> System</label>
+                            <label class="theme-option"><input type="radio" name="theme" value="light"> Light</label>
+                            <label class="theme-option"><input type="radio" name="theme" value="dark"> Dark</label>
+                        </fieldset>
+                    </div>
+                    </details>
+                </div>
+            </section>
+
+            <section id="trace-list" class="trace-list" aria-label="Trace results" aria-live="polite"></section>
+            <nav id="trace-pagination" class="pagination" aria-label="Trace pages"></nav>
+        </section>
+    </div>
 </main>
 <script src="{{ route('tracelog.viewer.js') }}"></script>

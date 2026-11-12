@@ -1,10 +1,9 @@
 (() => {
     const root = document.getElementById('tracelog-viewer');
-    const date_select = document.getElementById('trace-date');
+    const date_list = document.getElementById('trace-date');
+    const date_count = document.getElementById('date-count');
     const tag_input = document.getElementById('trace-tag');
-    const selected_date = document.getElementById('selected-date');
     const list = document.getElementById('trace-list');
-    const status = document.getElementById('trace-status');
     const pagination = document.getElementById('trace-pagination');
     const shared_query = new URLSearchParams(window.location.search);
     const shared_date = shared_query.get('date');
@@ -12,8 +11,12 @@
     const theme_options = document.querySelectorAll('input[name="theme"]');
     const settings = document.querySelector('.settings');
     const valid_themes = ['system', 'light', 'dark'];
-    const page_size = Math.max(1, Number.parseInt(root.dataset.pageSize || '25', 10));
+    const configured_page_size = Number.parseInt(root.dataset.pageSize || '25', 10);
+    const page_size = Number.isFinite(configured_page_size) && configured_page_size > 0
+        ? configured_page_size
+        : 25;
     let page = 1;
+    let selected_date = '';
 
     document.addEventListener('click', (event) => {
         if (settings.open && !settings.contains(event.target)) settings.open = false;
@@ -61,11 +64,17 @@
         return node;
     };
     const value = (item) => JSON.stringify(item, null, 2);
-    const format_date = (date) => new Intl.DateTimeFormat(undefined, {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    }).format(new Date(`${date}T00:00:00`));
+    const format_date = (date) => {
+        const parsed_date = new Date(`${date}T00:00:00`);
+
+        if (Number.isNaN(parsed_date.getTime())) return date;
+
+        return new Intl.DateTimeFormat(undefined, {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        }).format(parsed_date);
+    };
     const format_datetime = (datetime) => {
         const parsed_datetime = new Date(datetime);
 
@@ -76,20 +85,13 @@
             timeStyle: 'medium',
         }).format(parsed_datetime);
     };
-    const set_status = (message, state = '', is_loading = false) => {
-        status.replaceChildren();
-        if (is_loading) {
-            const loading = element('span', undefined, 'loading');
-            const spinner = element('span', undefined, 'spinner');
-            spinner.setAttribute('aria-hidden', 'true');
-            loading.append(spinner, text(message));
-            status.append(loading);
-        } else {
-            status.append(text(message));
-        }
-        status.dataset.state = state;
-    };
+    const format_time = (datetime) => {
+        const parsed_datetime = new Date(datetime);
 
+        if (Number.isNaN(parsed_datetime.getTime())) return datetime;
+
+        return new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(parsed_datetime);
+    };
     async function get_json(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         const payload = await response.json();
@@ -98,26 +100,40 @@
     }
 
     async function load_dates() {
-        set_status('Loading dates…', '', true);
+        list.replaceChildren(element('p', 'Loading dates…', 'empty'));
         const payload = await get_json(root.dataset.datesUrl);
-        date_select.replaceChildren();
-        payload.dates.forEach((date) => date_select.append(new Option(format_date(date), date)));
+        date_list.replaceChildren();
+        date_count.textContent = payload.dates.length ? String(payload.dates.length) : '';
+        payload.dates.forEach((date) => {
+            const date_button = element('button', format_date(date), 'date-item');
+            date_button.type = 'button';
+            date_button.dataset.date = date;
+            date_button.setAttribute('role', 'option');
+            date_button.onclick = () => {
+                select_date(date);
+                load_traces();
+            };
+            date_list.append(date_button);
+        });
         if (payload.dates.length) {
-            if (shared_date && payload.dates.includes(shared_date)) date_select.value = shared_date;
-            selected_date.textContent = format_date(date_select.value);
+            select_date(shared_date && payload.dates.includes(shared_date) ? shared_date : payload.dates[0]);
             await load_traces();
             if (shared_trace_id) await open_shared_trace(shared_trace_id);
         } else {
-            selected_date.textContent = 'No dates yet';
             list.replaceChildren(element('p', 'No TraceLog dates available yet.', 'empty'));
-            set_status('Nothing to inspect yet. New traces will appear here.');
         }
     }
 
     async function load_traces() {
-        const params = new URLSearchParams({ date: date_select.value, page: String(page), per_page: String(page_size) });
+        if (!selected_date) {
+            list.replaceChildren(element('p', 'Select a log date to view traces.', 'empty'));
+            pagination.replaceChildren();
+
+            return;
+        }
+
+        const params = new URLSearchParams({ date: selected_date, page: String(page), per_page: String(page_size) });
         if (tag_input.value) params.set('tag', tag_input.value);
-        set_status('Loading traces…', '', true);
         list.classList.add('is-loading');
         const loading_overlay = element('div', undefined, 'loading-overlay');
         const loading_spinner = element('span', undefined, 'spinner');
@@ -128,7 +144,6 @@
         try {
             const payload = await get_json(`${root.dataset.tracesUrl}?${params}`);
             list.replaceChildren();
-            set_status(payload.total ? `${payload.total} trace(s) on ${format_date(date_select.value)}` : 'No traces match these filters.');
             if (payload.traces.length) {
                 payload.traces.forEach((trace) => list.append(render_trace(trace)));
             } else {
@@ -136,9 +151,8 @@
             }
             render_pagination(payload);
         } catch (error) {
-            set_status(error.message, 'error');
             list.replaceChildren();
-            list.append(element('p', 'Trace data could not be loaded. Try refreshing.', 'empty'));
+            list.append(element('p', error.message || 'Trace data could not be loaded. Try refreshing.', 'empty'));
             pagination.replaceChildren();
         } finally {
             list.classList.remove('is-loading');
@@ -152,12 +166,26 @@
         details.dataset.traceId = trace.trace_id;
         const summary = document.createElement('summary');
         const summary_main = element('span', undefined, 'trace-summary-main');
-        summary_main.append(element('span', trace.trace_id, 'trace-id'));
+        const summary_top = element('span', undefined, 'trace-summary-top');
+        summary_top.append(element('span', trace.trace_id, 'trace-id'));
+        summary_top.append(element('span', String(trace.event_count) + ' events', 'trace-count'));
+        summary_main.append(summary_top);
         const model_names = trace.models.map((model) => model.split('\\').pop()).slice(0, 2).join(', ');
-        const model_suffix = trace.models.length > 2 ? ` +${trace.models.length - 2}` : '';
-        const model_summary = `${model_names}${model_suffix}`;
-        const tag_summary = trace.tags.length ? ` · Tags: ${trace.tags.join(', ')}` : ' · Untagged';
-        summary_main.append(element('span', `${format_datetime(trace.started_at)} · Models: ${model_summary}${tag_summary}`, 'trace-context'));
+        const model_suffix = trace.models.length > 2 ? ' +' + (trace.models.length - 2) : '';
+        const model_row = element('span', undefined, 'trace-models');
+        model_row.append(element('span', model_names || 'No models', 'trace-context'));
+        if (model_suffix) model_row.append(element('span', model_suffix + ' models', 'trace-model-more'));
+        summary_main.append(model_row);
+        const tag_row = element('span', undefined, 'trace-tags');
+        if (trace.tags.length) {
+            trace.tags.forEach((tag) => tag_row.append(element('span', tag, 'trace-tag')));
+        } else {
+            tag_row.append(element('span', 'untagged', 'trace-tag is-empty'));
+        }
+        summary_main.append(tag_row);
+        const timestamp = element('time', format_time(trace.started_at), 'trace-time');
+        timestamp.dateTime = trace.started_at;
+        timestamp.title = trace.started_at;
         const share_button = document.createElement('button');
         share_button.className = 'share-button';
         share_button.type = 'button';
@@ -175,7 +203,9 @@
             event.stopPropagation();
             share_trace(trace.trace_id);
         });
-        summary.append(summary_main, element('span', `${trace.event_count} event(s)`, 'trace-count'), share_button);
+        const chevron = element('span', '›', 'trace-chevron');
+        chevron.setAttribute('aria-hidden', 'true');
+        summary.append(summary_main, timestamp, share_button, chevron);
         details.append(summary);
         const meta = element('p', undefined, 'trace-meta');
         meta.append(element('span', `${format_datetime(trace.started_at)} → ${format_datetime(trace.ended_at)}`));
@@ -188,7 +218,7 @@
 
     async function share_trace(trace_id) {
         const share_url = new URL(window.location.href);
-        share_url.search = new URLSearchParams({ date: date_select.value, trace_id }).toString();
+        share_url.search = new URLSearchParams({ date: selected_date, trace_id }).toString();
         share_url.hash = '';
 
         try {
@@ -207,9 +237,8 @@
                 if (!copied) throw new Error('Copy command failed.');
             }
 
-            set_status('Share link copied.');
         } catch (error) {
-            set_status(`Copy this link: ${share_url}`);
+            list.prepend(element('p', `Copy this link: ${share_url}`, 'empty'));
         }
     }
 
@@ -220,11 +249,11 @@
         if (!details) {
             try {
                 const url = root.dataset.traceUrlTemplate.replace('__TRACE_ID__', encodeURIComponent(trace_id));
-                const trace = await get_json(`${url}?date=${encodeURIComponent(date_select.value)}`);
+                const trace = await get_json(`${url}?date=${encodeURIComponent(selected_date)}`);
                 details = render_trace(trace);
                 list.prepend(details);
             } catch (error) {
-                set_status(error.message, 'error');
+                list.prepend(element('p', error.message, 'empty'));
 
                 return;
             }
@@ -245,7 +274,7 @@
         detail.append(loading);
         container.append(detail);
         try {
-            const trace = await get_json(`${url}?date=${encodeURIComponent(date_select.value)}`);
+            const trace = await get_json(`${url}?date=${encodeURIComponent(selected_date)}`);
             detail.replaceChildren(element('p', `Parts: ${trace.files.join(', ')}`, 'detail-heading'));
             const timeline = element('div', undefined, 'timeline');
             trace.events.forEach((event) => {
@@ -333,13 +362,21 @@
         pagination.append(next);
     }
 
-    date_select.onchange = () => { page = 1; selected_date.textContent = format_date(date_select.value); load_traces(); };
+    function select_date(date) {
+        selected_date = date;
+        date_list.querySelectorAll('.date-item').forEach((date_button) => {
+            const is_selected = date_button.dataset.date === date;
+            date_button.classList.toggle('is-selected', is_selected);
+            date_button.setAttribute('aria-selected', String(is_selected));
+        });
+        page = 1;
+    }
+
     document.getElementById('trace-refresh').onclick = () => { page = 1; load_traces(); };
     tag_input.onkeydown = (event) => {
         if (event.key === 'Enter') { page = 1; load_traces(); }
     };
     load_dates().catch((error) => {
-        set_status(error.message, 'error');
-        list.append(element('p', 'TraceLog is unavailable right now.', 'empty'));
+        list.replaceChildren(element('p', error.message || 'TraceLog is unavailable right now.', 'empty'));
     });
 })();
