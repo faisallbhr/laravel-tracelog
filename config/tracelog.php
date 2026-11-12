@@ -50,7 +50,10 @@ return [
     |
     */
     'reader' => [
-        /* Maximum number of traces returned per page. */
+        /* Number of traces returned per page by default. */
+        'page_size' => (int) env('TRACELOG_READER_PAGE_SIZE', 25),
+
+        /* Maximum number of traces allowed per page. */
         'max_page_size' => (int) env('TRACELOG_READER_MAX_PAGE_SIZE', 100),
     ],
 

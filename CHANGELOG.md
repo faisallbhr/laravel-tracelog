@@ -14,6 +14,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 - Add date-level trace summaries across all size parts.
 - Add an opt-in, authorized read-only TraceLog viewer with date-scoped JSON endpoints and a Blade UI.
 - Add configurable application-wide sensitive attributes through `config/tracelog.php`; `sensitive()` remains available for individual watches.
+- Add configurable reader page size with clear validation when `per_page` exceeds the maximum.
+- Add numbered pagination controls to the TraceLog viewer.
 
 ## [1.0.0] - 2026-11-10
 

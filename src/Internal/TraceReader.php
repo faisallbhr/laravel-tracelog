@@ -398,8 +398,12 @@ final class TraceReader
     {
         $max_page_size = (int) $this->config->get('tracelog.reader.max_page_size', 100);
 
-        if ($page < 1 || $per_page < 1 || $per_page > $max_page_size) {
-            throw new InvalidArgumentException('Invalid TraceLog pagination values.');
+        if ($page < 1 || $per_page < 1) {
+            throw new InvalidArgumentException('Page and per_page must be greater than zero.');
+        }
+
+        if ($per_page > $max_page_size) {
+            throw new InvalidArgumentException("per_page cannot exceed max_page_size ({$max_page_size}).");
         }
     }
 }

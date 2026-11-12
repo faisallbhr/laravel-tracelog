@@ -14,6 +14,8 @@ class TraceLogViewerTest extends TestCase
     {
         $app['config']->set('tracelog.viewer.enabled', true);
         $app['config']->set('tracelog.viewer.middleware', []);
+        $app['config']->set('tracelog.reader.page_size', 1);
+        $app['config']->set('tracelog.reader.max_page_size', 1);
     }
 
     protected function setUp(): void
@@ -46,7 +48,8 @@ class TraceLogViewerTest extends TestCase
             ->assertOk()
             ->assertSee('TraceLog Viewer')
             ->assertSee('/tracelog/assets/viewer.css')
-            ->assertSee('/tracelog/assets/viewer.js');
+            ->assertSee('/tracelog/assets/viewer.js')
+            ->assertSee('data-page-size="1"', false);
         $this->get('/tracelog/assets/viewer.css')->assertOk()->assertHeader('Content-Type', 'text/css; charset=UTF-8');
         $this->get('/tracelog/assets/viewer.js')->assertOk()->assertHeader('Content-Type', 'application/javascript; charset=UTF-8');
         $this->getJson('/tracelog/api/dates')
@@ -89,6 +92,22 @@ class TraceLogViewerTest extends TestCase
             ->assertJsonCount(2, 'events');
 
         $this->getJson('/tracelog/api/traces/aaaabbbb?date=2026-11-12')->assertNotFound();
+    }
+
+    public function test_trace_list_uses_configured_page_size_when_omitted(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', $this->event('aaaabbbb', '2026-11-11T00:00:00.000000+00:00', [], 'Order')."\n");
+
+        $this->getJson('/tracelog/api/traces?date=2026-11-11')
+            ->assertOk()
+            ->assertJsonPath('per_page', 1);
+    }
+
+    public function test_trace_list_explains_when_page_size_exceeds_maximum(): void
+    {
+        $this->getJson('/tracelog/api/traces?date=2026-11-11&per_page=2')
+            ->assertBadRequest()
+            ->assertJsonPath('message', 'Invalid trace query: per_page cannot exceed max_page_size (1).');
     }
 
     public function test_invalid_queries_return_bad_request_without_paths(): void

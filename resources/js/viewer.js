@@ -12,6 +12,7 @@
     const theme_options = document.querySelectorAll('input[name="theme"]');
     const settings = document.querySelector('.settings');
     const valid_themes = ['system', 'light', 'dark'];
+    const page_size = Math.max(1, Number.parseInt(root.dataset.pageSize || '25', 10));
     let page = 1;
 
     document.addEventListener('click', (event) => {
@@ -114,13 +115,19 @@
     }
 
     async function load_traces() {
-        const params = new URLSearchParams({ date: date_select.value, page: String(page), per_page: '25' });
+        const params = new URLSearchParams({ date: date_select.value, page: String(page), per_page: String(page_size) });
         if (tag_input.value) params.set('tag', tag_input.value);
         set_status('Loading traces…', '', true);
-        list.replaceChildren();
+        list.classList.add('is-loading');
+        const loading_overlay = element('div', undefined, 'loading-overlay');
+        const loading_spinner = element('span', undefined, 'spinner');
+        loading_spinner.setAttribute('aria-hidden', 'true');
+        loading_overlay.append(loading_spinner, text('Loading traces…'));
+        list.append(loading_overlay);
         list.setAttribute('aria-busy', 'true');
         try {
             const payload = await get_json(`${root.dataset.tracesUrl}?${params}`);
+            list.replaceChildren();
             set_status(payload.total ? `${payload.total} trace(s) on ${format_date(date_select.value)}` : 'No traces match these filters.');
             if (payload.traces.length) {
                 payload.traces.forEach((trace) => list.append(render_trace(trace)));
@@ -130,9 +137,11 @@
             render_pagination(payload);
         } catch (error) {
             set_status(error.message, 'error');
+            list.replaceChildren();
             list.append(element('p', 'Trace data could not be loaded. Try refreshing.', 'empty'));
             pagination.replaceChildren();
         } finally {
+            list.classList.remove('is-loading');
             list.removeAttribute('aria-busy');
         }
     }
@@ -270,16 +279,53 @@
 
     function render_pagination(payload) {
         pagination.replaceChildren();
+        const total_pages = Math.ceil(payload.total / payload.per_page);
+
+        if (total_pages <= 1) return;
+
         if (payload.page > 1) {
-            const previous = element('button', 'Previous');
+            const previous = element('button', '‹', 'pagination-arrow');
             previous.type = 'button';
+            previous.setAttribute('aria-label', 'Previous page');
+            previous.title = 'Previous page';
             previous.onclick = () => { page--; load_traces(); };
             pagination.append(previous);
         }
-        pagination.append(text(`Page ${payload.page}`));
+
+        const visible_pages = new Set([
+            1,
+            total_pages,
+            Math.max(1, payload.page - 1),
+            payload.page,
+            Math.min(total_pages, payload.page + 1),
+        ]);
+        let previous_page = 0;
+
+        [...visible_pages].sort((first_page, second_page) => first_page - second_page).forEach((page_number) => {
+            if (page_number - previous_page > 1) {
+                pagination.append(element('span', '…', 'page-ellipsis'));
+            }
+
+            const page_button = element('button', String(page_number), 'page-number');
+            page_button.type = 'button';
+            page_button.setAttribute('aria-label', 'Go to page ' + page_number);
+
+            if (page_number === payload.page) {
+                page_button.classList.add('is-current');
+                page_button.setAttribute('aria-current', 'page');
+            } else {
+                page_button.onclick = () => { page = page_number; load_traces(); };
+            }
+
+            pagination.append(page_button);
+            previous_page = page_number;
+        });
+
         if (payload.has_more) {
-            const next = element('button', 'Next');
+            const next = element('button', '›', 'pagination-arrow');
             next.type = 'button';
+            next.setAttribute('aria-label', 'Next page');
+            next.title = 'Next page';
             next.onclick = () => { page++; load_traces(); };
             pagination.append(next);
         }

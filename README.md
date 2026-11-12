@@ -226,7 +226,13 @@ variable:
 ```env
 TRACELOG_LOG_DAYS=7
 TRACELOG_LOG_MAX_SIZE=10485760
+TRACELOG_READER_PAGE_SIZE=25
+TRACELOG_READER_MAX_PAGE_SIZE=100
 ```
+
+`TRACELOG_READER_PAGE_SIZE` controls the default number of traces shown per
+page. `TRACELOG_READER_MAX_PAGE_SIZE` sets the upper limit; requests with a
+larger `per_page` value are rejected with a validation message.
 
 Files are written under `storage/logs/` with the daily filename pattern
 `tracelog-YYYY-MM-DD-N.log`, where `N` is the size-part number for that day.

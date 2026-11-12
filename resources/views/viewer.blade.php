@@ -12,7 +12,8 @@
 <main id="tracelog-viewer"
       data-dates-url="{{ route('tracelog.api.dates') }}"
       data-traces-url="{{ route('tracelog.api.traces') }}"
-      data-trace-url-template="{{ route('tracelog.api.trace', ['trace_id' => '__TRACE_ID__']) }}">
+      data-trace-url-template="{{ route('tracelog.api.trace', ['trace_id' => '__TRACE_ID__']) }}"
+      data-page-size="{{ config('tracelog.reader.page_size', 25) }}">
     <header class="masthead">
         <h1>TraceLog</h1>
         <p class="date-note">Selected day<strong id="selected-date">—</strong></p>

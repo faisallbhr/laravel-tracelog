@@ -58,11 +58,11 @@ final class TraceLogViewerController
             return $this->json($this->reader->tracesForDate(
                 $date,
                 $this->queryInt($request, 'page', 1),
-                $this->queryInt($request, 'per_page', 25),
+                $this->queryInt($request, 'per_page', (int) config('tracelog.reader.page_size', 25)),
                 $tag
             ));
         } catch (InvalidArgumentException $exception) {
-            return $this->error('Invalid trace query.', 400);
+            return $this->error('Invalid trace query: '.$exception->getMessage(), 400);
         } catch (TraceReaderException $exception) {
             return $this->error('TraceLog data is unavailable.', 404);
         } catch (Throwable $exception) {
