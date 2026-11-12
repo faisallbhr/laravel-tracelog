@@ -13,6 +13,8 @@ changes for `created`, `updated`, `deleted`, `restored`, and `forceDeleted`
 events in one structured debug log, including the application source that
 triggered the event.
 
+![TraceLog Viewer](docs/screenshots/tracelog-viewer.png)
+
 ## Requirements
 
 - PHP 8.2 or later (Laravel 13 requires PHP 8.3 or later)
