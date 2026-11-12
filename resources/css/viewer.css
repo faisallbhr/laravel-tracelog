@@ -245,7 +245,7 @@
         }
 
         .trace-sidebar h1 {
-            margin: 0 0 2.5rem;
+            margin: 1rem 0;
         }
 
         .sidebar-heading {
@@ -382,6 +382,12 @@
             opacity: .8;
         }
 
+        .trace-content input:focus,
+        .trace-content input:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
         .button {
             min-height: 2.75rem;
             padding: .55rem 1rem;
@@ -411,10 +417,6 @@
 
         .button:hover {
             filter: brightness(.92);
-        }
-
-        .button:active {
-            transform: translateY(1px);
         }
 
         .status {

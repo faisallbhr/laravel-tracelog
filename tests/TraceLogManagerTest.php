@@ -4,6 +4,7 @@ namespace TraceLog\Tests;
 
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use TraceLog\Enums\ModelEvent;
 use TraceLog\Facades\TraceLog;
 use TraceLog\Internal\WatchRegistry;
 use TraceLog\TraceLogManager;
@@ -112,6 +113,33 @@ class TraceLogManagerTest extends TestCase
 
         $this->assertNotSame($first, $second);
         $this->assertSame($second, $registry->rulesFor(new TestModel));
+    }
+
+    public function test_watch_configuration_can_be_restored_for_a_queued_job(): void
+    {
+        $manager = new TraceLogManager;
+
+        $manager->watch(TestModel::class)
+            ->only(['name'])
+            ->events([ModelEvent::Updated])
+            ->tags('checkout');
+
+        $snapshot = $manager->snapshot();
+        $restored = new TraceLogManager;
+        $restored->restore($snapshot);
+
+        $this->assertTrue($restored->isWatching(new TestModel));
+        $this->assertSame($snapshot, $restored->snapshot());
+    }
+
+    public function test_restoring_an_empty_queue_payload_clears_the_current_watch(): void
+    {
+        $manager = new TraceLogManager;
+        $manager->watch();
+
+        $manager->restore(null);
+
+        $this->assertFalse($manager->isWatching(new TestModel));
     }
 
     public function test_scoped_lifecycle_does_not_leak_watch_configuration(): void

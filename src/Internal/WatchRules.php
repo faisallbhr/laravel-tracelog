@@ -24,6 +24,30 @@ final class WatchRules
     /** @var list<string> */
     private array $sensitive = [];
 
+    /** @return array{only: list<string>|null, except: list<string>, events: list<string>|null, sensitive: list<string>} */
+    public function snapshot(): array
+    {
+        return [
+            'only' => $this->only,
+            'except' => $this->except,
+            'events' => $this->events === null
+                ? null
+                : array_map(static fn (ModelEvent $event): string => $event->value, $this->events),
+            'sensitive' => $this->sensitive,
+        ];
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    public function restore(array $snapshot): void
+    {
+        $this->only = $snapshot['only'] ?? null;
+        $this->except = $snapshot['except'] ?? [];
+        $this->events = isset($snapshot['events'])
+            ? array_map(static fn (string $event): ModelEvent => ModelEvent::from($event), $snapshot['events'])
+            : null;
+        $this->sensitive = $snapshot['sensitive'] ?? [];
+    }
+
     /** @param list<string> $attributes */
     public function only(array $attributes): void
     {

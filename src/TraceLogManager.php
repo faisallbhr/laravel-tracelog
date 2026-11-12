@@ -60,6 +60,24 @@ class TraceLogManager
         return $this->registry->rulesFor($model) !== null;
     }
 
+    /** @return array{watch: array, context: array}|null */
+    public function snapshot(): ?array
+    {
+        $watch = $this->registry->snapshot();
+
+        return $watch === null ? null : [
+            'watch' => $watch,
+            'context' => $this->context->snapshot(),
+        ];
+    }
+
+    /** @param array<string, mixed>|null $snapshot */
+    public function restore(?array $snapshot): void
+    {
+        $this->registry->restore($snapshot['watch'] ?? null);
+        $this->context->restore($snapshot['context'] ?? null);
+    }
+
     /**
      * Stop all model, class, and global watches in the current scope.
      */

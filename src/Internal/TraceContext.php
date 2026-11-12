@@ -12,6 +12,19 @@ final class TraceContext
     /** @var list<string> */
     private array $tags = [];
 
+    /** @return array{trace_id: string|null, tags: list<string>} */
+    public function snapshot(): array
+    {
+        return ['trace_id' => $this->trace_id, 'tags' => $this->tags];
+    }
+
+    /** @param array<string, mixed>|null $snapshot */
+    public function restore(?array $snapshot): void
+    {
+        $this->trace_id = $snapshot['trace_id'] ?? null;
+        $this->tags = $snapshot['tags'] ?? [];
+    }
+
     /** @param list<string> $tags */
     public function addTags(array $tags): void
     {

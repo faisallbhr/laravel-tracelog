@@ -3,6 +3,10 @@
 namespace TraceLog;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Queue\Events\JobExceptionOccurred;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Queue\Queue;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -71,6 +75,8 @@ class TraceLogServiceProvider extends ServiceProvider
         if ((bool) config('tracelog.viewer.enabled', false)) {
             $this->registerViewerRoutes();
         }
+
+        $this->registerQueueHooks();
     }
 
     private function registerViewerRoutes(): void
@@ -86,5 +92,37 @@ class TraceLogServiceProvider extends ServiceProvider
             Route::get('/api/traces', [TraceLogViewerController::class, 'traces'])->name('tracelog.api.traces');
             Route::get('/api/traces/{trace_id}', [TraceLogViewerController::class, 'trace'])->name('tracelog.api.trace');
         });
+    }
+
+    private function registerQueueHooks(): void
+    {
+        if (! (bool) config('tracelog.queue.propagate_watch', true) || ! class_exists(Queue::class)) {
+            return;
+        }
+
+        Queue::createPayloadUsing(function (): array {
+            $snapshot = app(TraceLogManager::class)->snapshot();
+
+            return $snapshot === null ? [] : ['tracelog' => $snapshot];
+        });
+
+        Event::listen(JobProcessing::class, function (JobProcessing $event): void {
+            if ($event->connectionName === 'sync') {
+                return;
+            }
+
+            $snapshot = $event->job->payload()['tracelog'] ?? null;
+
+            app(TraceLogManager::class)->restore(is_array($snapshot) ? $snapshot : null);
+        });
+
+        $reset = static function (JobProcessed|JobExceptionOccurred $event): void {
+            if ($event->connectionName !== 'sync') {
+                app(TraceLogManager::class)->stop();
+            }
+        };
+
+        Event::listen(JobProcessed::class, $reset);
+        Event::listen(JobExceptionOccurred::class, $reset);
     }
 }
