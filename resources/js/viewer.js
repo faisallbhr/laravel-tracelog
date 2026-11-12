@@ -209,7 +209,6 @@
         details.append(summary);
         const meta = element('p', undefined, 'trace-meta');
         meta.append(element('span', `${format_datetime(trace.started_at)} → ${format_datetime(trace.ended_at)}`));
-        meta.append(element('span', `Tags: ${trace.tags.join(', ') || 'none'}`));
         meta.append(element('span', `Models: ${trace.models.join(', ') || 'none'}`));
         details.append(meta);
         details.addEventListener('toggle', () => details.open && load_detail(details, trace.trace_id));
