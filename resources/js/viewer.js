@@ -167,7 +167,7 @@
         share_icon.setAttribute('viewBox', '0 0 24 24');
         share_icon.setAttribute('aria-hidden', 'true');
         const share_path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        share_path.setAttribute('d', 'M8 12h8m-3-3 3 3-3 3M5 5h4a2 2 0 0 1 2 2v1m0 8v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z');
+        share_path.setAttribute('d', 'M10 13a5 5 0 0 0 7.07.07l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15M14 11a5 5 0 0 0-7.07-.07l-2 2A5 5 0 0 0 12 20l1.15-1.15');
         share_icon.append(share_path);
         share_button.append(share_icon);
         share_button.addEventListener('click', (event) => {
@@ -281,16 +281,17 @@
         pagination.replaceChildren();
         const total_pages = Math.ceil(payload.total / payload.per_page);
 
-        if (total_pages <= 1) return;
+        if (payload.total < 1) return;
 
+        const previous = element('button', '‹', 'pagination-arrow');
+        previous.type = 'button';
+        previous.setAttribute('aria-label', 'Previous page');
+        previous.title = 'Previous page';
+        previous.disabled = payload.page <= 1;
         if (payload.page > 1) {
-            const previous = element('button', '‹', 'pagination-arrow');
-            previous.type = 'button';
-            previous.setAttribute('aria-label', 'Previous page');
-            previous.title = 'Previous page';
             previous.onclick = () => { page--; load_traces(); };
-            pagination.append(previous);
         }
+        pagination.append(previous);
 
         const visible_pages = new Set([
             1,
@@ -321,14 +322,15 @@
             previous_page = page_number;
         });
 
+        const next = element('button', '›', 'pagination-arrow');
+        next.type = 'button';
+        next.setAttribute('aria-label', 'Next page');
+        next.title = 'Next page';
+        next.disabled = !payload.has_more;
         if (payload.has_more) {
-            const next = element('button', '›', 'pagination-arrow');
-            next.type = 'button';
-            next.setAttribute('aria-label', 'Next page');
-            next.title = 'Next page';
             next.onclick = () => { page++; load_traces(); };
-            pagination.append(next);
         }
+        pagination.append(next);
     }
 
     date_select.onchange = () => { page = 1; selected_date.textContent = format_date(date_select.value); load_traces(); };
