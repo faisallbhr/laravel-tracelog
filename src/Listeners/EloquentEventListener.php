@@ -3,15 +3,15 @@
 namespace TraceLog\Listeners;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\TraceContext;
+use TraceLog\Internal\TraceWriter;
 use TraceLog\Internal\WatchRegistry;
-use TraceLog\Internal\WatchRules;
 use WeakMap;
 
 /**
- * Writes watched Eloquent events to Laravel's default log channel.
+ * Writes watched Eloquent events through the configured trace writer.
  */
 class EloquentEventListener
 {
@@ -19,7 +19,9 @@ class EloquentEventListener
     private WeakMap $previous;
 
     public function __construct(
-        private readonly WatchRegistry $registry
+        private readonly WatchRegistry $registry,
+        private readonly TraceContext $trace_context,
+        private readonly TraceWriter $writer
     ) {
         $this->previous = new WeakMap;
     }
@@ -35,7 +37,7 @@ class EloquentEventListener
             return;
         }
 
-        $rules ??= new WatchRules;
+        $rules ??= $this->registry->newRules();
         $this->capturePrevious($event, $model);
 
         if (! $rules->includes($event)) {
@@ -43,6 +45,7 @@ class EloquentEventListener
         }
 
         $context = [
+            ...$this->trace_context->metadata(),
             'event' => $event->value,
             'model' => $model::class,
             'id' => $model->getKey(),
@@ -60,14 +63,7 @@ class EloquentEventListener
 
         $context['source'] = $this->resolveSource();
 
-        Log::debug(json_encode(
-            $context,
-            JSON_PRETTY_PRINT
-                | JSON_UNESCAPED_SLASHES
-                | JSON_UNESCAPED_UNICODE
-                | JSON_INVALID_UTF8_SUBSTITUTE
-                | JSON_PARTIAL_OUTPUT_ON_ERROR
-        ));
+        $this->writer->write($context);
     }
 
     /**

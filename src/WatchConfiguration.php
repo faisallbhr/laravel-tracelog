@@ -4,6 +4,7 @@ namespace TraceLog;
 
 use InvalidArgumentException;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\WatchRules;
 
 /**
@@ -13,9 +14,12 @@ class WatchConfiguration
 {
     private readonly WatchRules $rules;
 
-    public function __construct(?WatchRules $rules = null)
+    private readonly TraceContext $context;
+
+    public function __construct(?WatchRules $rules = null, ?TraceContext $context = null)
     {
         $this->rules = $rules ?? new WatchRules;
+        $this->context = $context ?? new TraceContext;
     }
 
     /**
@@ -68,6 +72,16 @@ class WatchConfiguration
     public function sensitive(array $attributes): static
     {
         $this->rules->sensitive($this->validateAttributes($attributes));
+
+        return $this;
+    }
+
+    /**
+     * @param  list<string>|string  $tags
+     */
+    public function tags(array|string $tags): static
+    {
+        $this->context->addTags(is_string($tags) ? [$tags] : $tags);
 
         return $this;
     }

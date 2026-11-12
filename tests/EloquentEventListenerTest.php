@@ -2,6 +2,7 @@
 
 namespace TraceLog\Tests;
 
+use DateTimeZone;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Facades\TraceLog;
+use TraceLog\Internal\TraceRotatingFileHandler;
+use TraceLog\Internal\TraceWriter;
 
 class EloquentEventListenerTest extends TestCase
 {
@@ -18,15 +21,13 @@ class EloquentEventListenerTest extends TestCase
     {
         parent::setUp();
 
-        $this->log_path = storage_path('logs/tracelog-test.log');
+        $this->log_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'-1.log');
 
-        config([
-            'logging.default' => 'tracelog-test',
-            'logging.channels.tracelog-test' => [
-                'driver' => 'single',
-                'path' => $this->log_path,
-            ],
-        ]);
+        foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
+            unlink($path);
+        }
+
+        @unlink(storage_path('logs/tracelog.log.lock'));
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -47,6 +48,12 @@ class EloquentEventListenerTest extends TestCase
     protected function tearDown(): void
     {
         TraceLog::stop();
+
+        foreach (glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [] as $path) {
+            unlink($path);
+        }
+
+        @unlink(storage_path('logs/tracelog.log.lock'));
 
         if (file_exists($this->log_path)) {
             unlink($this->log_path);
@@ -72,6 +79,188 @@ class EloquentEventListenerTest extends TestCase
             'old' => null,
             'new' => 'Before',
         ], $context['changes']['name']);
+    }
+
+    public function test_writes_one_timestamped_json_object_per_line(): void
+    {
+        config([
+            'tracelog.logging.days' => 2,
+        ]);
+
+        TraceLog::watch()->tags(['checkout']);
+        TraceTestModel::create(['name' => 'Before']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertFileExists($this->log_path);
+        $this->assertCount(1, $lines);
+
+        $context = json_decode($lines[0], true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertMatchesRegularExpression(
+            '/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\+00:00$/',
+            $context['timestamp']
+        );
+        $this->assertSame(['checkout'], $context['tags']);
+        $this->assertSame('created', $context['event']);
+        $this->assertSame(TraceTestModel::class, $context['model']);
+    }
+
+    public function test_writer_creates_a_new_part_when_max_size_is_reached(): void
+    {
+        config(['tracelog.logging.max_size' => 1]);
+        TraceLog::watch();
+
+        TraceTestModel::create(['name' => 'First']);
+        TraceTestModel::create(['name' => 'Second']);
+
+        $second_path = storage_path('logs/tracelog-'.now()->format('Y-m-d').'-2.log');
+
+        $this->assertFileExists($this->log_path);
+        $this->assertFileExists($second_path);
+        $this->assertCount(1, file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+        $this->assertCount(1, file($second_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+    }
+
+    public function test_stale_handlers_coordinate_part_rotation(): void
+    {
+        config(['tracelog.logging.max_size' => 1]);
+        $first_writer = new TraceWriter(app('config'));
+        $second_writer = new TraceWriter(app('config'));
+        $payload = [
+            'trace_id' => 'aaaabbbb',
+            'tags' => [],
+            'event' => 'updated',
+            'model' => 'Order',
+            'id' => 1,
+            'source' => null,
+        ];
+
+        $first_writer->write($payload);
+        $second_writer->write($payload);
+
+        $parts = glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [];
+
+        $this->assertCount(2, $parts);
+        foreach ($parts as $part) {
+            $this->assertCount(1, file($part, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+            $this->assertGreaterThan(1, filesize($part));
+        }
+    }
+
+    public function test_retention_removes_parts_older_than_configured_days(): void
+    {
+        config(['tracelog.logging.days' => 1]);
+        $old_path = storage_path('logs/tracelog-'.now()->subDay()->format('Y-m-d').'-1.log');
+        file_put_contents($old_path, "old\n");
+
+        TraceLog::watch();
+        TraceTestModel::create(['name' => 'Current']);
+
+        $this->assertFileDoesNotExist($old_path);
+    }
+
+    public function test_maximum_part_size_must_be_positive(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new TraceRotatingFileHandler(
+            storage_path('logs/tracelog.log'),
+            0,
+            7,
+            new DateTimeZone('UTC')
+        );
+    }
+
+    public function test_concurrent_processes_rotate_into_separate_parts(): void
+    {
+        if (! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('pcntl is required for the process concurrency test.');
+        }
+
+        config(['tracelog.logging.max_size' => 1]);
+        $payload = [
+            'trace_id' => 'aaaabbbb',
+            'tags' => [],
+            'event' => 'updated',
+            'model' => 'Order',
+            'id' => 1,
+            'source' => null,
+        ];
+        $children = [];
+
+        for ($index = 0; $index < 2; $index++) {
+            $pid = pcntl_fork();
+            $this->assertNotSame(-1, $pid);
+
+            if ($pid === 0) {
+                (new TraceWriter(app('config')))->write($payload);
+                exit(0);
+            }
+
+            $children[] = $pid;
+        }
+
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            $this->assertSame(0, pcntl_wexitstatus($status));
+        }
+
+        $parts = glob(storage_path('logs/tracelog-'.now()->format('Y-m-d').'-*.log')) ?: [];
+
+        $this->assertCount(2, $parts);
+        foreach ($parts as $part) {
+            $this->assertCount(1, file($part, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+        }
+    }
+
+    public function test_each_jsonl_line_is_an_independent_json_object(): void
+    {
+        TraceLog::watch();
+
+        $model = TraceTestModel::create(['name' => 'Before']);
+        $model->update(['name' => 'After']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertCount(2, $lines);
+
+        foreach ($lines as $line) {
+            $this->assertStringNotContainsString('DEBUG:', $line);
+            $this->assertIsArray(json_decode($line, true, 512, JSON_THROW_ON_ERROR));
+        }
+    }
+
+    public function test_tags_and_trace_id_are_added_to_events(): void
+    {
+        TraceLog::watch()->tags([' checkout ', 'inventory', 'checkout']);
+
+        $first = TraceTestModel::create(['name' => 'First']);
+        $first_context = $this->readLogContext();
+        $first->update(['name' => 'Second']);
+        $second_context = $this->readLogContext();
+
+        $this->assertSame(8, strlen($first_context['trace_id']));
+        $this->assertSame($first_context['trace_id'], $second_context['trace_id']);
+        $this->assertSame(['checkout', 'inventory'], $first_context['tags']);
+        $this->assertSame($first_context['tags'], $second_context['tags']);
+    }
+
+    public function test_multiple_models_share_trace_id_and_tags(): void
+    {
+        TraceLog::watch()->tags(['checkout', 'inventory']);
+
+        TraceTestModel::create(['name' => 'Order changed']);
+        $order_context = $this->readLogContext();
+
+        OtherTraceTestModel::create(['name' => 'Stock changed']);
+        $stock_context = $this->readLogContext();
+
+        $this->assertSame($order_context['trace_id'], $stock_context['trace_id']);
+        $this->assertSame(['checkout', 'inventory'], $order_context['tags']);
+        $this->assertSame($order_context['tags'], $stock_context['tags']);
+        $this->assertSame(TraceTestModel::class, $order_context['model']);
+        $this->assertSame(OtherTraceTestModel::class, $stock_context['model']);
     }
 
     public function test_updated_event(): void
@@ -146,7 +335,7 @@ class EloquentEventListenerTest extends TestCase
         $log = file_get_contents($this->log_path);
 
         $this->assertSame(2, substr_count($log, '"event":'));
-        $this->assertStringContainsString('"event": "deleted"', $log);
+        $this->assertStringContainsString('"event":"deleted"', $log);
         $this->assertSame('forceDeleted', $context['event']);
         $this->assertArrayNotHasKey('changes', $context);
     }
@@ -187,6 +376,21 @@ class EloquentEventListenerTest extends TestCase
         $context = $this->readLogContext();
 
         $this->assertSame(['name', 'status'], array_keys($context['changes']));
+    }
+
+    public function test_tags_survive_model_specific_filter_precedence(): void
+    {
+        $model = TraceTestModel::create(['name' => 'Before', 'status' => 'pending']);
+
+        TraceLog::watch()->tags(['checkout'])->only(['status']);
+        TraceLog::watch(TraceTestModel::class)->only(['name']);
+
+        $model->update(['name' => 'After', 'status' => 'paid']);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(['checkout'], $context['tags']);
+        $this->assertSame(['name'], array_keys($context['changes']));
     }
 
     public function test_update_is_skipped_when_filter_removes_all_changes(): void
@@ -235,6 +439,20 @@ class EloquentEventListenerTest extends TestCase
         $model->delete();
 
         $this->assertSame('deleted', $this->readLogContext()['event']);
+    }
+
+    public function test_filtered_event_does_not_append_a_jsonl_line(): void
+    {
+        TraceLog::watch();
+        $model = TraceTestModel::create(['name' => 'Before']);
+
+        TraceLog::watch($model)->events([ModelEvent::Deleted]);
+        $model->update(['name' => 'After']);
+
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        $this->assertCount(1, $lines);
+        $this->assertSame('created', json_decode($lines[0], true, 512, JSON_THROW_ON_ERROR)['event']);
     }
 
     public function test_empty_event_filter_disables_watch_logging(): void
@@ -368,6 +586,18 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame(['name'], array_keys($this->readLogContext()['changes']));
     }
 
+    public function test_repeated_scope_registration_preserves_trace_tags(): void
+    {
+        $model = TraceTestModel::create(['name' => 'Before']);
+
+        TraceLog::watch(TraceTestModel::class)->tags(['checkout'])->only(['status']);
+        TraceLog::watch(TraceTestModel::class)->only(['name']);
+
+        $model->update(['name' => 'After']);
+
+        $this->assertSame(['checkout'], $this->readLogContext()['tags']);
+    }
+
     public function test_unwatched_model_is_not_logged(): void
     {
         TraceTestModel::create([
@@ -402,17 +632,45 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame('updated', $this->readLogContext()['event']);
     }
 
+    public function test_stop_resets_trace_metadata(): void
+    {
+        TraceLog::watch()->tags(['first']);
+        TraceTestModel::create(['name' => 'First']);
+        $first = $this->readLogContext();
+
+        TraceLog::stop();
+        TraceLog::watch()->tags(['second']);
+        TraceTestModel::create(['name' => 'Second']);
+        $second = $this->readLogContext();
+
+        $this->assertNotSame($first['trace_id'], $second['trace_id']);
+        $this->assertSame(['second'], $second['tags']);
+    }
+
+    public function test_scoped_lifecycle_does_not_leak_trace_metadata(): void
+    {
+        TraceLog::watch()->tags(['first']);
+        TraceTestModel::create(['name' => 'First']);
+        $first = $this->readLogContext();
+
+        $this->app->forgetScopedInstances();
+
+        TraceLog::watch()->tags(['second']);
+        TraceTestModel::create(['name' => 'Second']);
+        $second = $this->readLogContext();
+
+        $this->assertNotSame($first['trace_id'], $second['trace_id']);
+        $this->assertSame(['first'], $first['tags']);
+        $this->assertSame(['second'], $second['tags']);
+    }
+
     private function readLogContext(): array
     {
         $this->assertFileExists($this->log_path);
 
-        $content = file_get_contents($this->log_path);
+        $lines = file($this->log_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-        $start = strrpos($content, 'DEBUG: ');
-
-        $this->assertNotFalse($start);
-
-        return json_decode(substr($content, $start + 7), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($lines[array_key_last($lines)], true, 512, JSON_THROW_ON_ERROR);
     }
 
     public function test_event_contains_source(): void
@@ -441,6 +699,8 @@ class EloquentEventListenerTest extends TestCase
             'Automatically Traced',
             $context['changes']['name']['new']
         );
+        $this->assertSame(8, strlen($context['trace_id']));
+        $this->assertSame([], $context['tags']);
     }
 
     public function test_traceable_model_redacts_sensitive_attributes(): void

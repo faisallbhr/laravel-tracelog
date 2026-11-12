@@ -4,6 +4,25 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
+
+### Added
+
+- Add scoped trace IDs and additive trace tags to model event logs.
+- Make daily JSONL output the default, with timestamps and configurable retention.
+- Partition JSONL output by configurable maximum size.
+- Add an internal streaming trace reader with safe file discovery and pagination.
+- Coordinate size rotation between concurrent writers and read traces across parts of the same day.
+- Add date-level trace summaries across all size parts.
+- Add an opt-in, authorized read-only TraceLog viewer with date-scoped JSON endpoints and a Blade UI.
+- Add configurable application-wide sensitive attributes through `config/tracelog.php`; `sensitive()` remains available for individual watches.
+- Add configurable reader page size with clear validation when `per_page` exceeds the maximum.
+- Add numbered pagination controls to the TraceLog viewer.
+
+### Changed
+
+- Improve the TraceLog viewer layout with date navigation, full-width search, trace metadata, sharing controls, and responsive styling.
+
 ## [1.0.0] - 2026-11-10
 
 ### Fixed
@@ -51,7 +70,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.5.0
 [0.4.0]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.4.0

@@ -13,6 +13,8 @@ changes for `created`, `updated`, `deleted`, `restored`, and `forceDeleted`
 events in one structured debug log, including the application source that
 triggered the event.
 
+![TraceLog Viewer](docs/screenshots/tracelog-viewer.png)
+
 ## Requirements
 
 - PHP 8.2 or later (Laravel 13 requires PHP 8.3 or later)
@@ -90,6 +92,22 @@ An empty `only([])` allows no attributes, while an empty `except([])` excludes
 nothing. An `updated` event is not logged when filtering removes all of its
 changes.
 
+### Trace IDs and tags
+
+Events emitted in the same application scope share a lazily generated
+`trace_id`. Add trace-level tags with `tags()` using a string or array; repeated calls are additive,
+trim whitespace, ignore empty values, and preserve first-seen spelling and
+order:
+
+```php
+TraceLog::watch()
+    ->tags(['sales-order', ' inventory ', 'sales-order']);
+```
+
+Each logged event includes `trace_id` and `tags`. Calling `stop()` clears both
+the watches and the active trace metadata. Models using `Traceable` create an
+untagged trace lazily when they emit their first event.
+
 ### Filter events
 
 Select events using the existing `ModelEvent` enum:
@@ -108,10 +126,22 @@ logging for that watch.
 
 ### Protect sensitive attributes
 
-TraceLog always redacts `password`, `password_confirmation`, `remember_token`,
-`api_token`, `access_token`, `refresh_token`, `secret`, `secret_key`, and
-`private_key`. Matching is case-insensitive, including when an attribute is
-explicitly selected with `only()`.
+TraceLog redacts the attributes listed in `config/tracelog.php` under
+`sensitive_attributes`. The default list includes `password`,
+`password_confirmation`, `remember_token`, `api_token`, `access_token`,
+`refresh_token`, `secret`, `secret_key`, and `private_key`. Matching is
+case-insensitive, including when an attribute is explicitly selected with
+`only()`.
+
+Add application-specific attributes to that list:
+
+```php
+'sensitive_attributes' => [
+    'password',
+    'pin',
+    'security_answer',
+],
+```
 
 Add application-specific sensitive attributes with `sensitive()`:
 
@@ -160,34 +190,84 @@ TraceLog::stop();
 The supported public API consists of:
 
 - `TraceLog::watch()`, `TraceLog::stop()`, and `TraceLog::isWatching()`
-- `only()`, `except()`, `events()`, and `sensitive()` on a watch configuration
+- `only()`, `except()`, `events()`, `sensitive()`, and `tags()` on a watch configuration
 - the `ModelEvent` enum
 - the `Traceable` trait
 
 Classes under the `TraceLog\Internal` namespace are implementation details and
 are not part of the supported public API.
 
+## TraceLog Viewer
+
+The optional read-only viewer is disabled by default. Enable it explicitly and
+define the authorization gate in the application:
+
+```env
+TRACELOG_VIEWER_ENABLED=true
+TRACELOG_VIEWER_PATH=tracelog
+```
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('viewTraceLog', fn ($user): bool => $user->isAdmin());
+```
+
+The default routes use `web` and `auth` middleware and are available at
+`/tracelog` after routes are refreshed. The gate is checked for the page and
+every JSON endpoint, so `auth` alone does not grant access. The viewer is
+read-only, does not expose raw log downloads, and keeps traces scoped to one
+calendar date; a trace crossing midnight remains split between dates.
+
 ## Log output
 
-TraceLog writes at the `debug` level through Laravel's default log channel, so
-the destination follows your application's logging configuration.
+TraceLog writes JSON Lines files through a dedicated daily-rotated Monolog
+handler. Configure retention through `config/tracelog.php` or an environment
+variable:
+
+```env
+TRACELOG_LOG_DAYS=7
+TRACELOG_LOG_MAX_SIZE=10485760
+TRACELOG_READER_PAGE_SIZE=25
+TRACELOG_READER_MAX_PAGE_SIZE=100
+```
+
+`TRACELOG_READER_PAGE_SIZE` controls the default number of traces shown per
+page. `TRACELOG_READER_MAX_PAGE_SIZE` sets the upper limit; requests with a
+larger `per_page` value are rejected with a validation message.
+
+Files are written under `storage/logs/` with the daily filename pattern
+`tracelog-YYYY-MM-DD-N.log`, where `N` is the size-part number for that day.
+Each part is limited to 10 MiB by default and retention keeps the configured
+number of recent days. An individual event larger than the limit is kept intact
+in its own part, so that part is the one exception to the size limit. A small
+lock file coordinates rotation between concurrent workers. Filenames use the
+application's `app.timezone`; event timestamps are ISO 8601 UTC timestamps with
+microseconds.
 
 An update produces a structured entry like this:
 
-```text
-[2026-11-10 13:57:06] local.DEBUG: {
-    "event": "updated",
-    "model": "App\\Models\\Order",
-    "id": 123,
-    "changes": {
-        "status": {
-            "old": "draft",
-            "new": "paid"
-        }
-    },
-    "source": "/path/to/app/Http/Controllers/OrderController.php:42"
-}
+```json
+{"timestamp":"2026-11-11T14:15:30.123456+00:00","trace_id":"a4c91e7b","tags":["sales-order"],"event":"updated","model":"App\\Models\\Order","id":123,"changes":{"status":{"old":"draft","new":"paid"}},"source":"/path/to/app/Http/Controllers/OrderController.php:42"}
 ```
+
+Each physical line contains exactly one JSON object and does not include a text
+log prefix. The future reader should enumerate only validated
+`tracelog-YYYY-MM-DD-N.log` filenames under `storage/logs/`; a trace can span
+daily files or size parts and an eight-character trace ID is not globally
+unique.
+
+### Internal trace reader
+
+The package registers an internal, read-only `TraceLog\Internal\TraceReader`
+for future UI integrations. It can list valid daily files, paginate trace
+summaries for one file, and retrieve a trace by the pair `(filename, trace_id)`.
+It streams files, skips malformed JSONL records, rejects path traversal and
+symlinks, and enforces a pagination limit from `config/tracelog.php`.
+`tracesForDate($date)` groups each trace once across all size parts for that
+date; `traces($filename)` remains a per-file listing. Trace lookup reads all
+size parts for the requested date. A trace crossing midnight remains split
+between dates. It does not query Eloquent models or expose routes.
 
 Laravel emits companion events for soft-delete operations. By default,
 `restore()` logs both `updated` and `restored`, while `forceDelete()` logs both
@@ -197,8 +277,8 @@ event is needed.
 ## Important
 
 Keep TraceLog as a development dependency. Default redaction protects common
-credential names, but application-specific sensitive attributes must be added
-with `sensitive()`.
+credential names. Configure application-wide attributes in `config/tracelog.php`,
+or use `sensitive()` for one watch.
 
 Mass updates performed through an Eloquent query do not dispatch model events
 and therefore are not traced:

@@ -5,6 +5,7 @@ namespace TraceLog\Tests;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\WatchRules;
 use TraceLog\WatchConfiguration;
 
@@ -12,7 +13,7 @@ class WatchConfigurationTest extends TestCase
 {
     public function test_only_and_except_filter_changes_in_order(): void
     {
-        $rules = new WatchRules;
+        $rules = $this->rules();
 
         (new WatchConfiguration($rules))
             ->only(['total', 'status', 'notes'])
@@ -31,8 +32,8 @@ class WatchConfigurationTest extends TestCase
     public function test_empty_attribute_filters_have_explicit_meanings(): void
     {
         $changes = ['status' => ['old' => 'pending', 'new' => 'paid']];
-        $only_rules = new WatchRules;
-        $except_rules = new WatchRules;
+        $only_rules = $this->rules();
+        $except_rules = $this->rules();
 
         (new WatchConfiguration($only_rules))->only([]);
         (new WatchConfiguration($except_rules))->except([]);
@@ -43,7 +44,7 @@ class WatchConfigurationTest extends TestCase
 
     public function test_sensitive_attributes_are_redacted_case_insensitively(): void
     {
-        $rules = new WatchRules;
+        $rules = $this->rules();
 
         (new WatchConfiguration($rules))
             ->only(['Password', 'pin', 'name'])
@@ -64,7 +65,7 @@ class WatchConfigurationTest extends TestCase
 
     public function test_repeated_sensitive_calls_keep_previous_attributes(): void
     {
-        $rules = new WatchRules;
+        $rules = $this->rules();
 
         (new WatchConfiguration($rules))
             ->sensitive(['pin'])
@@ -100,7 +101,7 @@ class WatchConfigurationTest extends TestCase
             $changes[$attribute] = ['old' => 'old-secret', 'new' => 'new-secret'];
         }
 
-        $filtered = (new WatchRules)->filter($changes);
+        $filtered = $this->rules()->filter($changes);
 
         foreach ($attributes as $attribute) {
             $this->assertSame(
@@ -112,7 +113,7 @@ class WatchConfigurationTest extends TestCase
 
     public function test_events_default_to_all_and_can_be_restricted(): void
     {
-        $rules = new WatchRules;
+        $rules = $this->rules();
         $configuration = new WatchConfiguration($rules);
 
         foreach (ModelEvent::cases() as $event) {
@@ -124,7 +125,7 @@ class WatchConfigurationTest extends TestCase
         $this->assertTrue($rules->includes(ModelEvent::Updated));
         $this->assertFalse($rules->includes(ModelEvent::Created));
 
-        $empty_rules = new WatchRules;
+        $empty_rules = $this->rules();
         (new WatchConfiguration($empty_rules))->events([]);
 
         $this->assertFalse($empty_rules->includes(ModelEvent::Updated));
@@ -144,5 +145,39 @@ class WatchConfigurationTest extends TestCase
         $this->expectExceptionMessage('TraceLog attribute names must be strings');
 
         (new WatchConfiguration)->only(['status', 123]);
+    }
+
+    public function test_tags_are_normalized_and_chainable(): void
+    {
+        $context = new TraceContext;
+
+        $configuration = new WatchConfiguration($this->rules(), $context);
+
+        $this->assertSame($configuration, $configuration->tags([' checkout ', '', 'checkout', 'Inventory'])->tags(['inventory', 'sales']));
+        $this->assertSame(['checkout', 'Inventory', 'inventory', 'sales'], $context->metadata()['tags']);
+    }
+
+    public function test_single_tag_string_is_supported(): void
+    {
+        $context = new TraceContext;
+        $configuration = new WatchConfiguration($this->rules(), $context);
+
+        $this->assertSame($configuration, $configuration->tags(' checkout '));
+        $this->assertSame(['checkout'], $context->metadata()['tags']);
+    }
+
+    public function test_invalid_tag_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('TraceLog tags must be strings');
+
+        (new WatchConfiguration)->tags(['checkout', 123]);
+    }
+
+    private function rules(): WatchRules
+    {
+        $config = require dirname(__DIR__).'/config/tracelog.php';
+
+        return new WatchRules($config['sensitive_attributes']);
     }
 }
