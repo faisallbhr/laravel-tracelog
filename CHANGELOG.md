@@ -4,6 +4,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-12
+
 ### Added
 
 - Propagate active watch configuration, trace IDs, and tags to queued jobs, with an option to disable propagation.
@@ -84,7 +86,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v0.5.0...v1.0.0
