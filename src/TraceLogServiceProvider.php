@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use TraceLog\Console\InstallCommand;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Http\Controllers\TraceLogViewerController;
 use TraceLog\Internal\TraceContext;
@@ -41,6 +42,7 @@ class TraceLogServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
+            $this->commands([InstallCommand::class]);
             $this->publishes([
                 __DIR__.'/../config/tracelog.php' => config_path('tracelog.php'),
             ], 'tracelog-config');
