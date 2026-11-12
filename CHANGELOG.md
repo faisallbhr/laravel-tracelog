@@ -4,6 +4,12 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-12
+
+### Changed
+
+- Omit empty `null` to `null` attribute changes from created events.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
@@ -70,7 +76,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/faisallbhr/laravel-tracelog/releases/tag/v0.5.0

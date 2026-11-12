@@ -81,6 +81,21 @@ class EloquentEventListenerTest extends TestCase
         ], $context['changes']['name']);
     }
 
+    public function test_created_event_omits_empty_nullable_attributes(): void
+    {
+        TraceLog::watch();
+
+        TraceTestModel::create([
+            'name' => 'Before',
+            'status' => null,
+            'notes' => null,
+        ]);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame(['name', 'id'], array_keys($context['changes']));
+    }
+
     public function test_writes_one_timestamped_json_object_per_line(): void
     {
         config([
