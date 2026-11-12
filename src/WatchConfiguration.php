@@ -76,10 +76,12 @@ class WatchConfiguration
         return $this;
     }
 
-    /** @param list<string> $tags */
-    public function tags(array $tags): static
+    /**
+     * @param  list<string>|string  $tags
+     */
+    public function tags(array|string $tags): static
     {
-        $this->context->addTags($tags);
+        $this->context->addTags(is_string($tags) ? [$tags] : $tags);
 
         return $this;
     }

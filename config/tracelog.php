@@ -3,7 +3,7 @@
 /**
  * TraceLog logging configuration.
  *
- * @return array{logging: array{days: int, max_size: int}, reader: array{max_page_size: int}}
+ * @return array{logging: array{days: int, max_size: int}, reader: array{max_page_size: int}, viewer: array{enabled: bool, path: string, middleware: list<string>}}
  */
 return [
     'logging' => [
@@ -20,5 +20,16 @@ return [
     'reader' => [
         /** Maximum perPage value accepted by traces(). */
         'max_page_size' => (int) env('TRACELOG_READER_MAX_PAGE_SIZE', 100),
+    ],
+
+    'viewer' => [
+        /** Enable the optional read-only TraceLog viewer. Disabled by default. */
+        'enabled' => (bool) env('TRACELOG_VIEWER_ENABLED', false),
+
+        /** URL prefix used by the viewer routes. */
+        'path' => (string) env('TRACELOG_VIEWER_PATH', 'tracelog'),
+
+        /** Middleware applied to the viewer page and JSON endpoints. */
+        'middleware' => ['web', 'auth'],
     ],
 ];

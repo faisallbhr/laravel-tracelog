@@ -4,8 +4,10 @@ namespace TraceLog;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Http\Controllers\TraceLogViewerController;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceReader;
 use TraceLog\Internal\TraceWriter;
@@ -23,6 +25,7 @@ class TraceLogServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/tracelog.php', 'tracelog');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'tracelog');
 
         $this->app->scoped(WatchRegistry::class);
         $this->app->scoped(TraceContext::class);
@@ -57,5 +60,24 @@ class TraceLogServiceProvider extends ServiceProvider
                 }
             );
         }
+
+        if ((bool) config('tracelog.viewer.enabled', false)) {
+            $this->registerViewerRoutes();
+        }
+    }
+
+    private function registerViewerRoutes(): void
+    {
+        $path = trim((string) config('tracelog.viewer.path', 'tracelog'), '/');
+        $middleware = (array) config('tracelog.viewer.middleware', ['web', 'auth']);
+
+        Route::middleware($middleware)->prefix($path)->group(function (): void {
+            Route::get('/', [TraceLogViewerController::class, 'page'])->name('tracelog.viewer');
+            Route::get('/assets/viewer.css', [TraceLogViewerController::class, 'css'])->name('tracelog.viewer.css');
+            Route::get('/assets/viewer.js', [TraceLogViewerController::class, 'js'])->name('tracelog.viewer.js');
+            Route::get('/api/dates', [TraceLogViewerController::class, 'dates'])->name('tracelog.api.dates');
+            Route::get('/api/traces', [TraceLogViewerController::class, 'traces'])->name('tracelog.api.traces');
+            Route::get('/api/traces/{trace_id}', [TraceLogViewerController::class, 'trace'])->name('tracelog.api.trace');
+        });
     }
 }

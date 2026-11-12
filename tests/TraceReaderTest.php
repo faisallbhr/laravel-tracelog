@@ -46,6 +46,28 @@ class TraceReaderTest extends TestCase
         ], $this->reader()->files());
     }
 
+    public function test_dates_are_unique_and_newest_first(): void
+    {
+        $this->write('tracelog-2026-11-09-1.log', '');
+        $this->write('tracelog-2026-11-11-1.log', '');
+        $this->write('tracelog-2026-11-11-2.log', '');
+
+        $this->assertSame(['2026-11-11', '2026-11-09'], $this->reader()->dates());
+    }
+
+    public function test_trace_for_date_reads_all_parts_without_crossing_dates(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', $this->event('aaaabbbb', '2026-11-11T00:00:00.000000+00:00', [], 'Order')."\n");
+        $this->write('tracelog-2026-11-11-2.log', $this->event('aaaabbbb', '2026-11-11T00:00:01.000000+00:00', [], 'Stock')."\n");
+        $this->write('tracelog-2026-11-12-1.log', $this->event('aaaabbbb', '2026-11-12T00:00:01.000000+00:00', [], 'Invoice')."\n");
+
+        $trace = $this->reader()->traceForDate('2026-11-11', 'aaaabbbb');
+
+        $this->assertSame(2, $trace['event_count']);
+        $this->assertSame(['Order', 'Stock'], array_column($trace['events'], 'model'));
+        $this->assertNull($this->reader()->traceForDate('2026-11-10', 'aaaabbbb'));
+    }
+
     public function test_traces_group_interleaved_events_and_paginate_by_trace(): void
     {
         $a = $this->event('aaaabbbb', '2026-11-11T00:00:00.000000+00:00', ['checkout'], 'Order');

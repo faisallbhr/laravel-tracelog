@@ -157,6 +157,15 @@ class WatchConfigurationTest extends TestCase
         $this->assertSame(['checkout', 'Inventory', 'inventory', 'sales'], $context->metadata()['tags']);
     }
 
+    public function test_single_tag_string_is_supported(): void
+    {
+        $context = new TraceContext;
+        $configuration = new WatchConfiguration(new WatchRules, $context);
+
+        $this->assertSame($configuration, $configuration->tags(' checkout '));
+        $this->assertSame(['checkout'], $context->metadata()['tags']);
+    }
+
     public function test_invalid_tag_is_rejected(): void
     {
         $this->expectException(InvalidArgumentException::class);

@@ -93,7 +93,7 @@ changes.
 ### Trace IDs and tags
 
 Events emitted in the same application scope share a lazily generated
-`trace_id`. Add trace-level tags with `tags()`; repeated calls are additive,
+`trace_id`. Add trace-level tags with `tags()` using a string or array; repeated calls are additive,
 trim whitespace, ignore empty values, and preserve first-seen spelling and
 order:
 
@@ -182,6 +182,28 @@ The supported public API consists of:
 
 Classes under the `TraceLog\Internal` namespace are implementation details and
 are not part of the supported public API.
+
+## TraceLog Viewer
+
+The optional read-only viewer is disabled by default. Enable it explicitly and
+define the authorization gate in the application:
+
+```env
+TRACELOG_VIEWER_ENABLED=true
+TRACELOG_VIEWER_PATH=tracelog
+```
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('viewTraceLog', fn ($user): bool => $user->isAdmin());
+```
+
+The default routes use `web` and `auth` middleware and are available at
+`/tracelog` after routes are refreshed. The gate is checked for the page and
+every JSON endpoint, so `auth` alone does not grant access. The viewer is
+read-only, does not expose raw log downloads, and keeps traces scoped to one
+calendar date; a trace crossing midnight remains split between dates.
 
 ## Log output
 

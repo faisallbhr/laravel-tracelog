@@ -46,6 +46,19 @@ final class TraceReader
         return $files;
     }
 
+    /** @return list<string> */
+    public function dates(): array
+    {
+        $dates = [];
+
+        foreach ($this->files() as $filename) {
+            preg_match(self::FILENAME_PATTERN, $filename, $matches);
+            $dates[$matches[1]] = true;
+        }
+
+        return array_keys($dates);
+    }
+
     /**
      * @return array{page: int, per_page: int, total: int, has_more: bool, traces: list<array<string, mixed>>}
      */
@@ -134,6 +147,43 @@ final class TraceReader
                 $summary ??= $this->newSummary($filename, $trace_id);
                 $this->addToSummary($summary, $event, $part_filename);
 
+                $events[] = $event;
+            }
+        }
+
+        if ($summary === null) {
+            return null;
+        }
+
+        unset($summary['_earliest_at'], $summary['_latest_at']);
+        $summary['events'] = $events;
+
+        return $summary;
+    }
+
+    /** @return (array<string, mixed>|null) */
+    public function traceForDate(string $date, string $trace_id): ?array
+    {
+        $this->validateDate($date);
+        $this->validateTraceId($trace_id);
+
+        $files = $this->filesForDateValue($date);
+
+        if ($files === []) {
+            return null;
+        }
+
+        $summary = null;
+        $events = [];
+
+        foreach ($files as $filename) {
+            foreach ($this->records($filename) as $event) {
+                if ($event['trace_id'] !== $trace_id) {
+                    continue;
+                }
+
+                $summary ??= $this->newSummary($filename, $trace_id);
+                $this->addToSummary($summary, $event, $filename);
                 $events[] = $event;
             }
         }
