@@ -45,6 +45,66 @@ final class WatchRegistry
         return new WatchRules($this->default_sensitive_attributes);
     }
 
+    /** @return array{all: array|null, classes: array<string, array>, records: array<string, array<string, array<string, array>>>}|null */
+    public function snapshot(): ?array
+    {
+        if ($this->watch_all === null && $this->watched_classes === [] && $this->watched_records === []) {
+            return null;
+        }
+
+        return [
+            'all' => $this->watch_all?->snapshot(),
+            'classes' => array_map(static fn (WatchRules $rules): array => $rules->snapshot(), $this->watched_classes),
+            'records' => array_map(
+                static fn (array $connections): array => array_map(
+                    static fn (array $records): array => array_map(
+                        static fn (WatchRules $rules): array => $rules->snapshot(),
+                        $records,
+                    ),
+                    $connections,
+                ),
+                $this->watched_records,
+            ),
+        ];
+    }
+
+    /** @param array<string, mixed>|null $snapshot */
+    public function restore(?array $snapshot): void
+    {
+        $this->stop();
+
+        if ($snapshot === null) {
+            return;
+        }
+
+        if ($snapshot['all'] !== null) {
+            $this->watch_all = $this->newRules();
+            $this->watch_all->restore($snapshot['all']);
+        }
+
+        foreach ($snapshot['classes'] as $model => $rules_snapshot) {
+            if (! is_string($model) || ! is_a($model, Model::class, true)) {
+                continue;
+            }
+
+            $this->watched_classes[$model] = $this->newRules();
+            $this->watched_classes[$model]->restore($rules_snapshot);
+        }
+
+        foreach ($snapshot['records'] as $model => $connections) {
+            if (! is_string($model) || ! is_a($model, Model::class, true)) {
+                continue;
+            }
+
+            foreach ($connections as $connection => $records) {
+                foreach ($records as $key => $rules_snapshot) {
+                    $this->watched_records[$model][$connection][$key] = $this->newRules();
+                    $this->watched_records[$model][$connection][$key]->restore($rules_snapshot);
+                }
+            }
+        }
+    }
+
     public function rulesFor(Model $model): ?WatchRules
     {
         return $this->watched_records[$model::class][$model->getConnectionName() ?? ''][(string) $model->getKey()]

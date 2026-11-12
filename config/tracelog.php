@@ -43,6 +43,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Queue
+    |--------------------------------------------------------------------------
+    |
+    | Propagate active watch configuration to queued jobs and jobs dispatched
+    | from them. Set TRACELOG_QUEUE_PROPAGATE_WATCH to false to disable it.
+    |
+    */
+    'queue' => [
+        'propagate_watch' => (bool) env('TRACELOG_QUEUE_PROPAGATE_WATCH', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Reader
     |--------------------------------------------------------------------------
     |

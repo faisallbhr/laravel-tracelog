@@ -125,6 +125,17 @@ Each logged event includes `trace_id` and `tags`. Calling `stop()` clears both
 the watches and the active trace metadata. Models using `Traceable` create an
 untagged trace lazily when they emit their first event.
 
+### Queue jobs
+
+When a job is dispatched while TraceLog is active, its watch configuration,
+trace ID, and tags are propagated to the queued job. This keeps model events
+logged by the job in the same trace. Propagation is enabled by default and can
+be disabled with:
+
+```env
+TRACELOG_QUEUE_PROPAGATE_WATCH=false
+```
+
 ### Filter events
 
 Select events using the existing `ModelEvent` enum:

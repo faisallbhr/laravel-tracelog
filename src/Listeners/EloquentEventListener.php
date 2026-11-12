@@ -146,7 +146,7 @@ class EloquentEventListener
         foreach ($trace as $frame) {
             $file = $frame['file'] ?? null;
 
-            if ($file === null) {
+            if ($file === null || str_contains($file, '://')) {
                 continue;
             }
 

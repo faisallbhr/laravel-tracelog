@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Laravel\SerializableClosure\SerializableClosure;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Facades\TraceLog;
@@ -698,6 +699,24 @@ class EloquentEventListenerTest extends TestCase
         $context = $this->readLogContext();
 
         $this->assertSame(__FILE__.':'.$expected_line, $context['source']);
+    }
+
+    public function test_event_skips_virtual_serializable_closure_source(): void
+    {
+        TraceLog::watch();
+
+        $closure = static function (): void {
+            TraceTestModel::create(['name' => 'Serialized Closure']);
+        };
+
+        $serialized = serialize(SerializableClosure::unsigned($closure));
+        $restored = unserialize($serialized);
+        $restored();
+
+        $context = $this->readLogContext();
+
+        $this->assertNotNull($context['source']);
+        $this->assertStringNotContainsString('://', $context['source']);
     }
 
     public function test_traceable_model_is_logged_without_watch(): void

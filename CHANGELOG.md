@@ -4,6 +4,14 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Propagate active watch configuration, trace IDs, and tags to queued jobs, with an option to disable propagation.
+
+### Fixed
+
+- Ignore virtual serialized-closure frames when resolving event source locations.
+
 ## [1.1.1] - 2026-11-12
 
 ### Changed
