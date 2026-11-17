@@ -14,25 +14,12 @@ use TraceLog\Internal\WatchRegistry;
  */
 class TraceLogManager
 {
-    private readonly WatchRegistry $registry;
-
-    private readonly TraceContext $context;
-
-    private readonly ?TraceWriter $writer;
-
-    private readonly ?SourceResolver $source_resolver;
-
     public function __construct(
-        ?WatchRegistry $registry = null,
-        ?TraceContext $context = null,
-        ?TraceWriter $writer = null,
-        ?SourceResolver $source_resolver = null,
-    ) {
-        $this->registry = $registry ?? new WatchRegistry;
-        $this->context = $context ?? new TraceContext;
-        $this->writer = $writer;
-        $this->source_resolver = $source_resolver;
-    }
+        private readonly WatchRegistry $registry,
+        private readonly TraceContext $context,
+        private readonly TraceWriter $writer,
+        private readonly SourceResolver $source_resolver,
+    ) {}
 
     /**
      * Watch every model, all records of a model class, or one persisted record.
@@ -95,11 +82,11 @@ class TraceLogManager
             throw new InvalidArgumentException('TraceLog checkpoint labels must contain 1 to 200 UTF-8 characters.');
         }
 
-        ($this->writer ?? app(TraceWriter::class))->write([
+        $this->writer->write([
             ...$this->context->metadata(),
             'event' => 'checkpoint',
             'label' => $label,
-            'source' => ($this->source_resolver ?? app(SourceResolver::class))->resolve(),
+            'source' => $this->source_resolver->resolve(),
         ]);
     }
 

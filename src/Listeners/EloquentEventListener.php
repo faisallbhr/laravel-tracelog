@@ -23,7 +23,7 @@ class EloquentEventListener
         private readonly WatchRegistry $registry,
         private readonly TraceContext $trace_context,
         private readonly TraceWriter $writer,
-        private readonly ?SourceResolver $source_resolver = null,
+        private readonly SourceResolver $source_resolver,
     ) {
         $this->previous = new WeakMap;
     }
@@ -143,6 +143,6 @@ class EloquentEventListener
      */
     private function resolveSource(): ?string
     {
-        return ($this->source_resolver ?? app(SourceResolver::class))->resolve();
+        return $this->source_resolver->resolve();
     }
 }

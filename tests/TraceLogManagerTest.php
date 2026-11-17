@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Facades\TraceLog;
+use TraceLog\Internal\SourceResolver;
+use TraceLog\Internal\TraceContext;
+use TraceLog\Internal\TraceWriter;
 use TraceLog\Internal\WatchRegistry;
 use TraceLog\TraceLogManager;
 
@@ -13,7 +16,7 @@ class TraceLogManagerTest extends TestCase
 {
     public function test_watch_all_models(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $manager->watch();
 
@@ -22,7 +25,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_watch_specific_model_class(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $manager->watch(TestModel::class);
 
@@ -33,7 +36,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_watch_specific_record(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $model = new TestModel;
         $model->id = 10;
@@ -50,7 +53,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_record_watch_does_not_match_the_same_key_on_another_connection(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $watched = new TestModel;
         $watched->id = 10;
@@ -68,7 +71,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_stop_clears_all_watchers(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $manager->watch();
         $manager->stop();
@@ -79,7 +82,7 @@ class TraceLogManagerTest extends TestCase
     public function test_most_specific_watch_configuration_wins(): void
     {
         $registry = new WatchRegistry;
-        $manager = new TraceLogManager($registry);
+        $manager = $this->manager($registry);
         $model = new TestModel;
         $model->id = 10;
 
@@ -103,7 +106,7 @@ class TraceLogManagerTest extends TestCase
     public function test_repeated_watch_replaces_its_configuration(): void
     {
         $registry = new WatchRegistry;
-        $manager = new TraceLogManager($registry);
+        $manager = $this->manager($registry);
 
         $manager->watch(TestModel::class);
         $first = $registry->rulesFor(new TestModel);
@@ -117,7 +120,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_watch_configuration_can_be_restored_for_a_queued_job(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $manager->watch(TestModel::class)
             ->only(['name'])
@@ -125,7 +128,7 @@ class TraceLogManagerTest extends TestCase
             ->tags('checkout');
 
         $snapshot = $manager->snapshot();
-        $restored = new TraceLogManager;
+        $restored = $this->manager();
         $restored->restore($snapshot);
 
         $this->assertTrue($restored->isWatching(new TestModel));
@@ -134,7 +137,7 @@ class TraceLogManagerTest extends TestCase
 
     public function test_restoring_an_empty_queue_payload_clears_the_current_watch(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
         $manager->watch();
 
         $manager->restore(null);
@@ -157,11 +160,21 @@ class TraceLogManagerTest extends TestCase
 
     public function test_cannot_watch_unsaved_model(): void
     {
-        $manager = new TraceLogManager;
+        $manager = $this->manager();
 
         $this->expectException(InvalidArgumentException::class);
 
         $manager->watch(new TestModel);
+    }
+
+    private function manager(?WatchRegistry $registry = null): TraceLogManager
+    {
+        return new TraceLogManager(
+            $registry ?? new WatchRegistry,
+            new TraceContext,
+            app(TraceWriter::class),
+            new SourceResolver,
+        );
     }
 }
 
