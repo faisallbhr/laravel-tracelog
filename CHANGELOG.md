@@ -8,6 +8,7 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Add opt-in `TraceLog::checkpoint()` annotations for explicit business milestones in watched flows.
 - Add opt-in correlation for Laravel-reported exceptions, including queue job failures.
+- Add transaction-aware metadata and conservative commit/rollback status for Eloquent events.
 
 ## [1.2.0] - 2026-11-12
 

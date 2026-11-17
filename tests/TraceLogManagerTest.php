@@ -9,6 +9,7 @@ use TraceLog\Facades\TraceLog;
 use TraceLog\Internal\SourceResolver;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceWriter;
+use TraceLog\Internal\TransactionTracker;
 use TraceLog\Internal\WatchRegistry;
 use TraceLog\TraceLogManager;
 
@@ -174,6 +175,7 @@ class TraceLogManagerTest extends TestCase
             new TraceContext,
             app(TraceWriter::class),
             new SourceResolver,
+            app(TransactionTracker::class),
         );
     }
 }

@@ -4,6 +4,9 @@ namespace TraceLog;
 
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Events\TransactionBeginning;
+use Illuminate\Database\Events\TransactionCommitted;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
@@ -18,7 +21,9 @@ use TraceLog\Internal\ExceptionRecorder;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceReader;
 use TraceLog\Internal\TraceWriter;
+use TraceLog\Internal\TransactionTracker;
 use TraceLog\Internal\WatchRegistry;
+use TraceLog\Listeners\DatabaseTransactionListener;
 use TraceLog\Listeners\EloquentEventListener;
 
 /**
@@ -43,6 +48,8 @@ class TraceLogServiceProvider extends ServiceProvider
         $this->app->scoped(TraceContext::class);
         $this->app->scoped(TraceReader::class);
         $this->app->scoped(TraceWriter::class);
+        $this->app->scoped(TransactionTracker::class);
+        $this->app->scoped(DatabaseTransactionListener::class);
         $this->app->scoped(ExceptionRecorder::class, fn ($app): ExceptionRecorder => new ExceptionRecorder(
             $app->make(WatchRegistry::class),
             $app->make(TraceContext::class),
@@ -79,6 +86,16 @@ class TraceLogServiceProvider extends ServiceProvider
                 }
             );
         }
+
+        Event::listen(TransactionBeginning::class, function (TransactionBeginning $event): void {
+            app(DatabaseTransactionListener::class)->beginning($event);
+        });
+        Event::listen(TransactionCommitted::class, function (TransactionCommitted $event): void {
+            app(DatabaseTransactionListener::class)->committed($event);
+        });
+        Event::listen(TransactionRolledBack::class, function (TransactionRolledBack $event): void {
+            app(DatabaseTransactionListener::class)->rolledBack($event);
+        });
 
         $handler = $this->app->make(ExceptionHandler::class);
 

@@ -7,6 +7,7 @@ use InvalidArgumentException;
 use TraceLog\Internal\SourceResolver;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceWriter;
+use TraceLog\Internal\TransactionTracker;
 use TraceLog\Internal\WatchRegistry;
 
 /**
@@ -19,6 +20,7 @@ class TraceLogManager
         private readonly TraceContext $context,
         private readonly TraceWriter $writer,
         private readonly SourceResolver $source_resolver,
+        private readonly TransactionTracker $transactions,
     ) {}
 
     /**
@@ -104,6 +106,7 @@ class TraceLogManager
     /** @param array<string, mixed>|null $snapshot */
     public function restore(?array $snapshot): void
     {
+        $this->transactions->reset();
         $this->registry->restore($snapshot['watch'] ?? null);
         $this->context->restore($snapshot['context'] ?? null);
     }
@@ -113,6 +116,7 @@ class TraceLogManager
      */
     public function stop(): void
     {
+        $this->transactions->reset();
         $this->registry->stop();
         $this->context->reset();
     }

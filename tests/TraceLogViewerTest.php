@@ -137,6 +137,8 @@ class TraceLogViewerTest extends TestCase
 
         $script = file_get_contents(dirname(__DIR__).'/resources/js/viewer.js');
         $this->assertStringContainsString('REPORTED EXCEPTION', $script);
+        $this->assertStringContainsString('transaction-group', $script);
+        $this->assertStringContainsString('group_transactions', $script);
         $this->assertStringNotContainsString('innerHTML', $script);
     }
 

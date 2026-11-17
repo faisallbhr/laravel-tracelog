@@ -784,6 +784,104 @@
             color: var(--muted);
         }
 
+        .transaction::before {
+            background: var(--muted);
+        }
+
+        .transaction-group {
+            position: relative;
+            padding: .9rem;
+            background: var(--surface);
+            border: 1px solid var(--line-strong);
+            border-radius: .65rem;
+        }
+
+        .transaction-group::before {
+            position: absolute;
+            top: 1rem;
+            left: -1.18rem;
+            width: .55rem;
+            height: .55rem;
+            background: var(--muted);
+            border: 3px solid var(--paper);
+            border-radius: 50%;
+            content: "";
+        }
+
+        .transaction-badge {
+            color: var(--muted);
+            font-size: .72rem;
+            letter-spacing: .05em;
+        }
+
+        .transaction-label,
+        .transaction-status {
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
+        .transaction-label {
+            margin: .45rem 0 0;
+        }
+
+        .transaction-summary {
+            margin: .35rem 0 0;
+            color: var(--muted);
+            font-size: .82rem;
+            font-weight: 650;
+        }
+
+        .transaction-summary.committed {
+            color: #6fc49b;
+        }
+
+        .transaction-summary.rolled-back {
+            color: #d96c5f;
+        }
+
+        .transaction-events {
+            display: grid;
+            gap: .55rem;
+            margin-top: .75rem;
+            padding-left: .75rem;
+            border-left: 1px solid var(--line-strong);
+        }
+
+        .transaction-events .transaction-child {
+            padding: .45rem 0;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .transaction-events .transaction-child::before {
+            top: .85rem;
+            left: -1.06rem;
+            width: .45rem;
+            height: .45rem;
+            border-width: 2px;
+        }
+
+        .transaction-step {
+            margin: 0;
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
+        .transaction-status {
+            margin-left: .35rem;
+            text-transform: capitalize;
+        }
+
+        .transaction-status.committed {
+            color: #6fc49b;
+        }
+
+        .transaction-status.rolled_back {
+            color: #d96c5f;
+        }
+
         .meta {
             margin: .3rem 0 0;
             color: var(--muted);

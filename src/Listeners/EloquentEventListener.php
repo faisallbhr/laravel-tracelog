@@ -8,6 +8,7 @@ use TraceLog\Enums\ModelEvent;
 use TraceLog\Internal\SourceResolver;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceWriter;
+use TraceLog\Internal\TransactionTracker;
 use TraceLog\Internal\WatchRegistry;
 use WeakMap;
 
@@ -24,6 +25,7 @@ class EloquentEventListener
         private readonly TraceContext $trace_context,
         private readonly TraceWriter $writer,
         private readonly SourceResolver $source_resolver,
+        private readonly TransactionTracker $transactions,
     ) {
         $this->previous = new WeakMap;
     }
@@ -52,6 +54,10 @@ class EloquentEventListener
             'model' => $model::class,
             'id' => $model->getKey(),
         ];
+
+        if (($transaction = $this->transactions->metadataFor($model)) !== null) {
+            $context['transaction'] = $transaction;
+        }
 
         $changes = $rules->filter($this->resolveChanges($event, $model));
 

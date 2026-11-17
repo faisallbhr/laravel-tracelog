@@ -156,6 +156,7 @@ final class TraceReader
         }
 
         unset($summary['_earliest_at'], $summary['_latest_at']);
+        $this->resolveTransactionStatuses($events);
         $summary['events'] = $events;
 
         return $summary;
@@ -193,6 +194,7 @@ final class TraceReader
         }
 
         unset($summary['_earliest_at'], $summary['_latest_at']);
+        $this->resolveTransactionStatuses($events);
         $summary['events'] = $events;
 
         return $summary;
@@ -327,6 +329,10 @@ final class TraceReader
                 && is_string($event['message']);
         }
 
+        if ($event['event'] === 'transaction') {
+            return isset($event['transaction']) && $this->isValidTransaction($event['transaction']);
+        }
+
         if (! array_key_exists('model', $event) || ! array_key_exists('id', $event) || ! is_string($event['model'])) {
             return false;
         }
@@ -335,7 +341,108 @@ final class TraceReader
             return false;
         }
 
-        return ! array_key_exists('changes', $event) || is_array($event['changes']);
+        return (! array_key_exists('changes', $event) || is_array($event['changes']))
+            && (! array_key_exists('transaction', $event) || $this->isValidTransaction($event['transaction']));
+    }
+
+    private function isValidTransaction(mixed $transaction): bool
+    {
+        if (! is_array($transaction)) {
+            return false;
+        }
+
+        foreach (['id', 'connection_key', 'connection_name', 'level', 'frame_id'] as $field) {
+            if (! array_key_exists($field, $transaction)) {
+                return false;
+            }
+        }
+
+        $valid = ($transaction['id'] === null || is_string($transaction['id']))
+            && is_string($transaction['connection_key'])
+            && is_string($transaction['connection_name'])
+            && is_int($transaction['level'])
+            && ($transaction['frame_id'] === null || is_string($transaction['frame_id']));
+
+        if (array_key_exists('action', $transaction)) {
+            $valid = $valid
+                && in_array($transaction['action'], ['begin', 'commit', 'rollback'], true)
+                && is_int($transaction['from_level'])
+                && is_int($transaction['to_level']);
+        }
+
+        return $valid && (! array_key_exists('partial', $transaction) || is_bool($transaction['partial']));
+    }
+
+    /** @param list<array<string, mixed>> $events */
+    private function resolveTransactionStatuses(array &$events): void
+    {
+        $references = [];
+
+        foreach ($events as $index => &$event) {
+            if (! array_key_exists('model', $event)) {
+                continue;
+            }
+
+            $transaction = $event['transaction'] ?? null;
+            if (! is_array($transaction) || ! array_key_exists('id', $transaction)) {
+                $event['transaction_status'] = 'unknown';
+
+                continue;
+            }
+
+            if ($transaction['id'] === null) {
+                $event['transaction_status'] = 'outside';
+
+                continue;
+            }
+
+            if (($transaction['partial'] ?? false) === true) {
+                $event['transaction_status'] = 'unknown';
+
+                continue;
+            }
+
+            $event['transaction_status'] = 'pending';
+            $references[$transaction['id']][] = [
+                'index' => $index,
+                'level' => $transaction['level'],
+            ];
+        }
+        unset($event);
+
+        foreach ($events as $event) {
+            if ($event['event'] !== 'transaction' || ! is_array($event['transaction'])) {
+                continue;
+            }
+
+            $transaction = $event['transaction'];
+            $id = $transaction['id'] ?? null;
+            if (! is_string($id) || ! isset($references[$id])) {
+                continue;
+            }
+
+            if (($transaction['partial'] ?? false) === true) {
+                foreach ($references[$id] as $reference) {
+                    $events[$reference['index']]['transaction_status'] = 'unknown';
+                }
+
+                continue;
+            }
+
+            if ($transaction['action'] === 'rollback') {
+                foreach ($references[$id] as $reference) {
+                    if ($reference['level'] >= $transaction['from_level']) {
+                        $events[$reference['index']]['transaction_status'] = 'rolled_back';
+                    }
+                }
+            } elseif ($transaction['action'] === 'commit' && $transaction['to_level'] === 0) {
+                foreach ($references[$id] as $reference) {
+                    if ($events[$reference['index']]['transaction_status'] === 'pending') {
+                        $events[$reference['index']]['transaction_status'] = 'committed';
+                    }
+                }
+            }
+        }
     }
 
     private function isValidCheckpointLabel(string $label): bool

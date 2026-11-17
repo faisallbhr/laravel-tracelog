@@ -167,6 +167,14 @@ privacy impact. TraceLog never stores a stack trace, request payload, or
 exception arguments, and a reported exception does not imply that the flow
 failed or stopped.
 
+### Transaction awareness
+
+Watched Eloquent events include the model connection and observed transaction
+frame. The viewer derives `Committed`, `Rolled back`, `Pending`, `Unknown`, or
+`Outside transaction` from append-only transaction lifecycle records. Existing
+model events are never removed when a transaction rolls back, and transaction
+records are written only while an explicit watch is active.
+
 ### Queue jobs
 
 When a job is dispatched while TraceLog is active, its watch configuration,

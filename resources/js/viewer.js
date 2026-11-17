@@ -276,60 +276,127 @@
             const trace = await get_json(`${url}?date=${encodeURIComponent(selected_date)}`);
             detail.replaceChildren(element('p', `Parts: ${trace.files.join(', ')}`, 'detail-heading'));
             const timeline = element('div', undefined, 'timeline');
-            trace.events.forEach((event) => {
-                const item = element('article', undefined, 'event');
-                if (event.event === 'exception') {
-                    item.classList.add('exception');
-                    const title = element('h3', undefined, 'event-title');
-                    const timestamp = element('time', format_datetime(event.timestamp));
-                    timestamp.dateTime = event.timestamp;
-                    timestamp.title = event.timestamp;
-                    title.append(element('span', 'REPORTED EXCEPTION', 'exception-badge'), text(' '), timestamp);
-                    item.append(title, element('p', event.exception, 'exception-class'));
-                    item.append(element('p', event.message, 'exception-message'));
-                    if (event.source) item.append(element('p', event.source, 'meta'));
-                    timeline.append(item);
-
-                    return;
-                }
-                if (event.event === 'checkpoint') {
-                    item.classList.add('checkpoint');
-                    const title = element('h3', undefined, 'event-title');
-                    const timestamp = element('time', format_datetime(event.timestamp));
-                    timestamp.dateTime = event.timestamp;
-                    timestamp.title = event.timestamp;
-                    title.append(element('span', 'CHECKPOINT', 'checkpoint-badge'), text(' '), timestamp);
-                    item.append(title, element('p', event.label, 'checkpoint-label'));
-                    if (event.source) item.append(element('p', event.source, 'meta'));
-                    timeline.append(item);
-
-                    return;
-                }
-                const title = element('h3', undefined, 'event-title');
-                const timestamp = element('time', format_datetime(event.timestamp));
-                timestamp.dateTime = event.timestamp;
-                timestamp.title = event.timestamp;
-                title.append(text(event.event), text(' '), timestamp);
-                item.append(title);
-                item.append(element('p', `${event.model} #${event.id ?? 'null'}`, 'meta'));
-                if (event.source) item.append(element('p', event.source, 'meta'));
-                if (event.changes) {
-                    const changes = document.createElement('details');
-                    changes.className = 'changes';
-                    const changes_summary = element('summary', 'View changes');
-                    changes.addEventListener('toggle', () => {
-                        changes_summary.textContent = changes.open ? 'Hide changes' : 'View changes';
-                    });
-                    changes.append(changes_summary, element('pre', value(event.changes)));
-                    item.append(changes);
-                }
-                timeline.append(item);
+            group_transactions(trace.events).forEach((group) => {
+                timeline.append(group.type === 'transaction'
+                    ? render_transaction_group(group.events)
+                    : render_event(group.event));
             });
             detail.append(timeline);
             container.dataset.loaded = '1';
         } catch (error) {
             detail.replaceChildren(element('p', error.message, 'status'));
         }
+    }
+
+    function group_transactions(events) {
+        const groups = [];
+        const transactions = new Map();
+
+        events.forEach((event) => {
+            const transaction_id = event.transaction?.id;
+            if (!transaction_id || event.event === 'exception' || event.event === 'checkpoint') {
+                groups.push({ type: 'event', event });
+
+                return;
+            }
+
+            let group = transactions.get(transaction_id);
+            if (!group) {
+                group = { type: 'transaction', events: [] };
+                transactions.set(transaction_id, group);
+                groups.push(group);
+            }
+            group.events.push(event);
+        });
+
+        return groups;
+    }
+
+    function render_transaction_group(events) {
+        const item = element('article', undefined, 'transaction-group');
+        const first = events.find((event) => event.event === 'transaction');
+        const transaction = first?.transaction || {};
+        const terminal = [...events].reverse().find((event) =>
+            event.event === 'transaction' && ['commit', 'rollback'].includes(event.transaction.action));
+        const model_count = events.filter((event) => event.event !== 'transaction').length;
+        const status = terminal?.transaction.action === 'commit' ? 'Committed'
+            : terminal?.transaction.action === 'rollback' ? 'Rolled back'
+                : 'Pending';
+        const title = element('h3', undefined, 'event-title');
+        title.append(element('span', `Transaction — ${transaction.connection_name || 'unknown'}`, 'transaction-badge'));
+        item.append(title);
+        item.append(element('p', `${status} · Level ${transaction.level || 1} · ${model_count} model changes`, `transaction-summary ${status.toLowerCase().replace(' ', '-')}`));
+
+        const children = element('div', undefined, 'transaction-events');
+        events.forEach((event) => {
+            if (event.event === 'transaction') {
+                const step = element('p', undefined, 'transaction-step');
+                step.append(element('strong', event.transaction.action.toUpperCase()), text(` · level ${event.transaction.from_level} → ${event.transaction.to_level} · ${format_datetime(event.timestamp)}`));
+                children.append(step);
+
+                return;
+            }
+            const child = render_event(event);
+            child.classList.add('transaction-child');
+            children.append(child);
+        });
+        item.append(children);
+
+        return item;
+    }
+
+    function render_event(event) {
+        const item = element('article', undefined, 'event');
+        if (event.event === 'exception') {
+            item.classList.add('exception');
+            const title = element('h3', undefined, 'event-title');
+            const timestamp = element('time', format_datetime(event.timestamp));
+            timestamp.dateTime = event.timestamp;
+            timestamp.title = event.timestamp;
+            title.append(element('span', 'REPORTED EXCEPTION', 'exception-badge'), text(' '), timestamp);
+            item.append(title, element('p', event.exception, 'exception-class'));
+            item.append(element('p', event.message, 'exception-message'));
+            if (event.source) item.append(element('p', event.source, 'meta'));
+
+            return item;
+        }
+
+        if (event.event === 'checkpoint') {
+            item.classList.add('checkpoint');
+            const title = element('h3', undefined, 'event-title');
+            const timestamp = element('time', format_datetime(event.timestamp));
+            timestamp.dateTime = event.timestamp;
+            timestamp.title = event.timestamp;
+            title.append(element('span', 'CHECKPOINT', 'checkpoint-badge'), text(' '), timestamp);
+            item.append(title, element('p', event.label, 'checkpoint-label'));
+            if (event.source) item.append(element('p', event.source, 'meta'));
+
+            return item;
+        }
+
+        const title = element('h3', undefined, 'event-title');
+        const timestamp = element('time', format_datetime(event.timestamp));
+        timestamp.dateTime = event.timestamp;
+        timestamp.title = event.timestamp;
+        title.append(text(event.event), text(' '), timestamp);
+        if (event.transaction_status) {
+            title.append(text(' '), element('span', event.transaction_status.replace('_', ' '), `transaction-status ${event.transaction_status}`));
+        }
+        item.append(title);
+        item.append(element('p', `${event.model} #${event.id ?? 'null'}`, 'meta'));
+        if (event.source) item.append(element('p', event.source, 'meta'));
+        if (event.changes) {
+            const changes = document.createElement('details');
+            changes.className = 'changes';
+            const changes_summary = element('summary', 'View changes');
+            changes.addEventListener('toggle', () => {
+                changes_summary.textContent = changes.open ? 'Hide changes' : 'View changes';
+            });
+            changes.append(changes_summary, element('pre', value(event.changes)));
+            item.append(changes);
+        }
+
+        return item;
     }
 
     function render_pagination(payload) {
