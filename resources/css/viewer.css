@@ -762,6 +762,28 @@
             font-weight: 650;
         }
 
+        .exception::before {
+            background: #d96c5f;
+        }
+
+        .exception-badge {
+            color: #d96c5f;
+            font-size: .72rem;
+            letter-spacing: .05em;
+        }
+
+        .exception-class {
+            margin: .45rem 0 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: .82rem;
+            font-weight: 650;
+        }
+
+        .exception-message {
+            margin: .25rem 0 0;
+            color: var(--muted);
+        }
+
         .meta {
             margin: .3rem 0 0;
             color: var(--muted);

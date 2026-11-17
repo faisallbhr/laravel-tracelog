@@ -2,6 +2,7 @@
 
 namespace TraceLog;
 
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobProcessed;
@@ -13,6 +14,7 @@ use Illuminate\Support\ServiceProvider;
 use TraceLog\Console\InstallCommand;
 use TraceLog\Enums\ModelEvent;
 use TraceLog\Http\Controllers\TraceLogViewerController;
+use TraceLog\Internal\ExceptionRecorder;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceReader;
 use TraceLog\Internal\TraceWriter;
@@ -41,6 +43,12 @@ class TraceLogServiceProvider extends ServiceProvider
         $this->app->scoped(TraceContext::class);
         $this->app->scoped(TraceReader::class);
         $this->app->scoped(TraceWriter::class);
+        $this->app->scoped(ExceptionRecorder::class, fn ($app): ExceptionRecorder => new ExceptionRecorder(
+            $app->make(WatchRegistry::class),
+            $app->make(TraceContext::class),
+            $app->make(TraceWriter::class),
+            (bool) $app['config']->get('tracelog.exceptions.include_message', false),
+        ));
         $this->app->scoped(TraceLogManager::class);
         $this->app->scoped(EloquentEventListener::class);
     }
@@ -71,6 +79,18 @@ class TraceLogServiceProvider extends ServiceProvider
                 }
             );
         }
+
+        $handler = $this->app->make(ExceptionHandler::class);
+
+        if (method_exists($handler, 'reportable')) {
+            $handler->reportable(function (\Throwable $exception): void {
+                app(ExceptionRecorder::class)->record($exception);
+            });
+        }
+
+        Event::listen(JobExceptionOccurred::class, function (JobExceptionOccurred $event): void {
+            app(ExceptionRecorder::class)->record($event->exception);
+        });
 
         if ((bool) config('tracelog.viewer.enabled', false)) {
             $this->registerViewerRoutes();

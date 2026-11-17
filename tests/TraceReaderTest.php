@@ -250,6 +250,25 @@ class TraceReaderTest extends TestCase
         $this->assertSame('Order validated', $trace['events'][0]['label']);
     }
 
+    public function test_reader_accepts_exception_only_traces(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', json_encode([
+            'timestamp' => '2026-11-11T00:00:00.000000+00:00',
+            'trace_id' => 'aaaabbbb',
+            'tags' => [],
+            'event' => 'exception',
+            'exception' => RuntimeException::class,
+            'message' => '[REDACTED]',
+            'source' => '/app/OrderService.php:82',
+        ], JSON_THROW_ON_ERROR)."\n");
+
+        $trace = $this->reader()->trace('tracelog-2026-11-11-1.log', 'aaaabbbb');
+
+        $this->assertSame(1, $trace['event_count']);
+        $this->assertSame([], $trace['models']);
+        $this->assertSame('exception', $trace['events'][0]['event']);
+    }
+
     private function reader(): TraceReader
     {
         return $this->app->make(TraceReader::class);

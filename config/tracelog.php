@@ -43,6 +43,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Exceptions
+    |--------------------------------------------------------------------------
+    |
+    | Reported exceptions are correlated only while an explicit watch is active.
+    | Messages are redacted by default because they may contain sensitive data.
+    |
+    */
+    'exceptions' => [
+        /* Set TRACELOG_EXCEPTION_MESSAGES=true to persist raw messages. */
+        'include_message' => (bool) env('TRACELOG_EXCEPTION_MESSAGES', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
     |

@@ -118,6 +118,28 @@ class TraceLogViewerTest extends TestCase
         $this->assertStringNotContainsString($this->storage_path, $response->getContent());
     }
 
+    public function test_viewer_api_accepts_reported_exception_events(): void
+    {
+        $this->write('tracelog-2026-11-11-1.log', json_encode([
+            'timestamp' => '2026-11-11T00:00:00.000000+00:00',
+            'trace_id' => 'aaaabbbb',
+            'tags' => ['checkout'],
+            'event' => 'exception',
+            'exception' => RuntimeException::class,
+            'message' => '[REDACTED]',
+            'source' => '/app/OrderService.php:82',
+        ], JSON_THROW_ON_ERROR)."\n");
+
+        $this->getJson('/tracelog/api/traces/aaaabbbb?date=2026-11-11')
+            ->assertOk()
+            ->assertJsonPath('events.0.event', 'exception')
+            ->assertJsonPath('events.0.message', '[REDACTED]');
+
+        $script = file_get_contents(dirname(__DIR__).'/resources/js/viewer.js');
+        $this->assertStringContainsString('REPORTED EXCEPTION', $script);
+        $this->assertStringNotContainsString('innerHTML', $script);
+    }
+
     private function write(string $filename, string $contents): void
     {
         file_put_contents($this->storage_path.'/logs/'.$filename, $contents);

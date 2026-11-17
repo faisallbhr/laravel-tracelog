@@ -321,6 +321,12 @@ final class TraceReader
             return isset($event['label']) && is_string($event['label']) && $this->isValidCheckpointLabel($event['label']);
         }
 
+        if ($event['event'] === 'exception') {
+            return isset($event['exception'], $event['message'])
+                && is_string($event['exception'])
+                && is_string($event['message']);
+        }
+
         if (! array_key_exists('model', $event) || ! array_key_exists('id', $event) || ! is_string($event['model'])) {
             return false;
         }

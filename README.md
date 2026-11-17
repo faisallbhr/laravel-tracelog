@@ -146,6 +146,27 @@ them. Labels are trimmed, must contain 1–200 UTF-8 characters, and are logged
 individually even when repeated. Use static milestone names rather than
 customer data, tokens, SQL, or serialized payloads.
 
+### Correlate reported exceptions
+
+While an explicit watch is active, exceptions sent through Laravel's reporting
+pipeline are added to the same trace automatically. A caught exception must be
+reported explicitly to be eligible:
+
+```php
+try {
+    $this->createInvoice($order);
+} catch (\Throwable $exception) {
+    report($exception);
+    return false;
+}
+```
+
+Exception records contain the class, throw-site source, and a redacted message
+by default. Enable `TRACELOG_EXCEPTION_MESSAGES=true` only after reviewing the
+privacy impact. TraceLog never stores a stack trace, request payload, or
+exception arguments, and a reported exception does not imply that the flow
+failed or stopped.
+
 ### Queue jobs
 
 When a job is dispatched while TraceLog is active, its watch configuration,
