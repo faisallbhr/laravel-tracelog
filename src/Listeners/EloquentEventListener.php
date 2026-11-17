@@ -5,6 +5,7 @@ namespace TraceLog\Listeners;
 use Illuminate\Database\Eloquent\Model;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
+use TraceLog\Internal\SourceResolver;
 use TraceLog\Internal\TraceContext;
 use TraceLog\Internal\TraceWriter;
 use TraceLog\Internal\WatchRegistry;
@@ -21,7 +22,8 @@ class EloquentEventListener
     public function __construct(
         private readonly WatchRegistry $registry,
         private readonly TraceContext $trace_context,
-        private readonly TraceWriter $writer
+        private readonly TraceWriter $writer,
+        private readonly ?SourceResolver $source_resolver = null,
     ) {
         $this->previous = new WeakMap;
     }
@@ -141,26 +143,6 @@ class EloquentEventListener
      */
     private function resolveSource(): ?string
     {
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-
-        foreach ($trace as $frame) {
-            $file = $frame['file'] ?? null;
-
-            if ($file === null || str_contains($file, '://')) {
-                continue;
-            }
-
-            if (str_contains($file, DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR)) {
-                continue;
-            }
-
-            if (str_starts_with($file, dirname(__DIR__).DIRECTORY_SEPARATOR)) {
-                continue;
-            }
-
-            return isset($frame['line']) ? $file.':'.$frame['line'] : $file;
-        }
-
-        return null;
+        return ($this->source_resolver ?? app(SourceResolver::class))->resolve();
     }
 }

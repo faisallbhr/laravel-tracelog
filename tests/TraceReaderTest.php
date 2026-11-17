@@ -230,6 +230,26 @@ class TraceReaderTest extends TestCase
         $this->assertSame(['checkout'], $trace['tags']);
     }
 
+    public function test_reader_accepts_checkpoint_only_and_mixed_traces(): void
+    {
+        $checkpoint = json_encode([
+            'timestamp' => '2026-11-11T00:00:00.000000+00:00',
+            'trace_id' => 'aaaabbbb',
+            'tags' => ['checkout'],
+            'event' => 'checkpoint',
+            'label' => 'Order validated',
+            'source' => '/app/OrderService.php:30',
+        ], JSON_THROW_ON_ERROR);
+        $this->write('tracelog-2026-11-11-1.log', $checkpoint."\n");
+
+        $trace = $this->reader()->trace('tracelog-2026-11-11-1.log', 'aaaabbbb');
+
+        $this->assertSame(1, $trace['event_count']);
+        $this->assertSame([], $trace['models']);
+        $this->assertSame('checkpoint', $trace['events'][0]['event']);
+        $this->assertSame('Order validated', $trace['events'][0]['label']);
+    }
+
     private function reader(): TraceReader
     {
         return $this->app->make(TraceReader::class);

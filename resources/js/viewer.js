@@ -278,6 +278,19 @@
             const timeline = element('div', undefined, 'timeline');
             trace.events.forEach((event) => {
                 const item = element('article', undefined, 'event');
+                if (event.event === 'checkpoint') {
+                    item.classList.add('checkpoint');
+                    const title = element('h3', undefined, 'event-title');
+                    const timestamp = element('time', format_datetime(event.timestamp));
+                    timestamp.dateTime = event.timestamp;
+                    timestamp.title = event.timestamp;
+                    title.append(element('span', 'CHECKPOINT', 'checkpoint-badge'), text(' '), timestamp);
+                    item.append(title, element('p', event.label, 'checkpoint-label'));
+                    if (event.source) item.append(element('p', event.source, 'meta'));
+                    timeline.append(item);
+
+                    return;
+                }
                 const title = element('h3', undefined, 'event-title');
                 const timestamp = element('time', format_datetime(event.timestamp));
                 timestamp.dateTime = event.timestamp;

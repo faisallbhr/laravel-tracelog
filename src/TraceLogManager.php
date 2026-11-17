@@ -4,7 +4,9 @@ namespace TraceLog;
 
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use TraceLog\Internal\SourceResolver;
 use TraceLog\Internal\TraceContext;
+use TraceLog\Internal\TraceWriter;
 use TraceLog\Internal\WatchRegistry;
 
 /**
@@ -16,10 +18,20 @@ class TraceLogManager
 
     private readonly TraceContext $context;
 
-    public function __construct(?WatchRegistry $registry = null, ?TraceContext $context = null)
-    {
+    private readonly ?TraceWriter $writer;
+
+    private readonly ?SourceResolver $source_resolver;
+
+    public function __construct(
+        ?WatchRegistry $registry = null,
+        ?TraceContext $context = null,
+        ?TraceWriter $writer = null,
+        ?SourceResolver $source_resolver = null,
+    ) {
         $this->registry = $registry ?? new WatchRegistry;
         $this->context = $context ?? new TraceContext;
+        $this->writer = $writer;
+        $this->source_resolver = $source_resolver;
     }
 
     /**
@@ -58,6 +70,37 @@ class TraceLogManager
     public function isWatching(Model $model): bool
     {
         return $this->registry->rulesFor($model) !== null;
+    }
+
+    /**
+     * Record a trace-level business milestone for the active explicit watch.
+     *
+     * Labels are trimmed and must contain 1 to 200 UTF-8 characters. Calling
+     * this method without an explicit watch is a no-op.
+     *
+     * @throws InvalidArgumentException When the label is blank or too long.
+     */
+    public function checkpoint(string $label): void
+    {
+        if (! $this->registry->hasActiveWatch()) {
+            return;
+        }
+
+        $label = trim($label);
+        $length = function_exists('mb_strlen')
+            ? mb_strlen($label, 'UTF-8')
+            : preg_match_all('/./us', $label);
+
+        if ($label === '' || $length === false || $length > 200) {
+            throw new InvalidArgumentException('TraceLog checkpoint labels must contain 1 to 200 UTF-8 characters.');
+        }
+
+        ($this->writer ?? app(TraceWriter::class))->write([
+            ...$this->context->metadata(),
+            'event' => 'checkpoint',
+            'label' => $label,
+            'source' => ($this->source_resolver ?? app(SourceResolver::class))->resolve(),
+        ]);
     }
 
     /** @return array{watch: array, context: array}|null */

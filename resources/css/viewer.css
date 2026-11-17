@@ -747,6 +747,21 @@
             font-weight: 500;
         }
 
+        .checkpoint::before {
+            background: var(--focus);
+        }
+
+        .checkpoint-badge {
+            color: var(--focus);
+            font-size: .72rem;
+            letter-spacing: .05em;
+        }
+
+        .checkpoint-label {
+            margin: .45rem 0 0;
+            font-weight: 650;
+        }
+
         .meta {
             margin: .3rem 0 0;
             color: var(--muted);

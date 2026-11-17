@@ -112,6 +112,11 @@ final class WatchRegistry
             ?? $this->watch_all;
     }
 
+    public function hasActiveWatch(): bool
+    {
+        return $this->watch_all !== null || $this->watched_classes !== [] || $this->watched_records !== [];
+    }
+
     public function stop(): void
     {
         $this->watch_all = null;

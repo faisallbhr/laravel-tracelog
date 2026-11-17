@@ -4,6 +4,10 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add opt-in `TraceLog::checkpoint()` annotations for explicit business milestones in watched flows.
+
 ## [1.2.0] - 2026-11-12
 
 ### Added

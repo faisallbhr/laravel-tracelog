@@ -125,6 +125,27 @@ Each logged event includes `trace_id` and `tags`. Calling `stop()` clears both
 the watches and the active trace metadata. Models using `Traceable` create an
 untagged trace lazily when they emit their first event.
 
+### Add checkpoints
+
+Use checkpoints to mark meaningful business milestones inside an explicitly
+watched flow:
+
+```php
+TraceLog::watch()->tags('sales-order');
+
+TraceLog::checkpoint('Order validated');
+$order = $this->createOrder($data);
+TraceLog::checkpoint('Reserving inventory');
+$reserved = $this->reserveInventory($order);
+```
+
+Checkpoints use the same trace ID, tags, JSONL stream, and viewer timeline as
+model events. They are trace-level annotations and are enabled only while an
+explicit `watch()` registration is active; `Traceable` alone does not enable
+them. Labels are trimmed, must contain 1–200 UTF-8 characters, and are logged
+individually even when repeated. Use static milestone names rather than
+customer data, tokens, SQL, or serialized payloads.
+
 ### Queue jobs
 
 When a job is dispatched while TraceLog is active, its watch configuration,
@@ -219,6 +240,7 @@ The supported public API consists of:
 
 - `TraceLog::watch()`, `TraceLog::stop()`, and `TraceLog::isWatching()`
 - `only()`, `except()`, `events()`, `sensitive()`, and `tags()` on a watch configuration
+- `checkpoint()` for explicit trace-level business milestones
 - the `ModelEvent` enum
 - the `Traceable` trait
 

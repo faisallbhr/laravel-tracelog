@@ -289,7 +289,7 @@ final class TraceReader
     /** @param array<string, mixed> $event */
     private function isValidEvent(array $event): bool
     {
-        foreach (['trace_id', 'timestamp', 'tags', 'event', 'model', 'id', 'source'] as $field) {
+        foreach (['trace_id', 'timestamp', 'tags', 'event', 'source'] as $field) {
             if (! array_key_exists($field, $event)) {
                 return false;
             }
@@ -303,7 +303,7 @@ final class TraceReader
             return false;
         }
 
-        if (! is_string($event['event']) || ! is_string($event['model']) || ! is_array($event['tags']) || ! array_is_list($event['tags'])) {
+        if (! is_string($event['event']) || ! is_array($event['tags']) || ! array_is_list($event['tags'])) {
             return false;
         }
 
@@ -313,15 +313,32 @@ final class TraceReader
             }
         }
 
-        if (! is_int($event['id']) && ! is_string($event['id']) && $event['id'] !== null) {
-            return false;
-        }
-
         if ($event['source'] !== null && ! is_string($event['source'])) {
             return false;
         }
 
+        if ($event['event'] === 'checkpoint') {
+            return isset($event['label']) && is_string($event['label']) && $this->isValidCheckpointLabel($event['label']);
+        }
+
+        if (! array_key_exists('model', $event) || ! array_key_exists('id', $event) || ! is_string($event['model'])) {
+            return false;
+        }
+
+        if (! is_int($event['id']) && ! is_string($event['id']) && $event['id'] !== null) {
+            return false;
+        }
+
         return ! array_key_exists('changes', $event) || is_array($event['changes']);
+    }
+
+    private function isValidCheckpointLabel(string $label): bool
+    {
+        $length = function_exists('mb_strlen')
+            ? mb_strlen($label, 'UTF-8')
+            : preg_match_all('/./us', $label);
+
+        return trim($label) !== '' && $length !== false && $length <= 200;
     }
 
     private function isValidTimestamp(string $timestamp): bool
@@ -382,7 +399,7 @@ final class TraceReader
             }
         }
 
-        if (! in_array($event['model'], $summary['models'], true)) {
+        if (isset($event['model']) && ! in_array($event['model'], $summary['models'], true)) {
             $summary['models'][] = $event['model'];
         }
     }
