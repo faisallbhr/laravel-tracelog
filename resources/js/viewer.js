@@ -139,7 +139,8 @@
         const loading_spinner = element('span', undefined, 'spinner');
         loading_spinner.setAttribute('aria-hidden', 'true');
         loading_overlay.append(loading_spinner, text('Loading traces…'));
-        list.append(loading_overlay);
+        list.replaceChildren(loading_overlay);
+        list.scrollTop = 0;
         list.setAttribute('aria-busy', 'true');
         try {
             const payload = await get_json(`${root.dataset.tracesUrl}?${params}`);

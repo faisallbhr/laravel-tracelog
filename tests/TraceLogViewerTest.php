@@ -140,6 +140,7 @@ class TraceLogViewerTest extends TestCase
         $this->assertStringContainsString('REPORTED EXCEPTION', $script);
         $this->assertStringContainsString('transaction-group', $script);
         $this->assertStringContainsString("' model changes'", $script);
+        $this->assertStringContainsString('list.replaceChildren(loading_overlay)', $script);
         $this->assertStringContainsString('group_transactions', $script);
         $this->assertStringNotContainsString('innerHTML', $script);
     }
