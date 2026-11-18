@@ -717,6 +717,7 @@
 
         .event {
             position: relative;
+            min-width: 0;
             padding: .8rem .9rem;
             background: var(--surface);
             border: 1px solid var(--line);
@@ -782,6 +783,14 @@
         .exception-message {
             margin: .25rem 0 0;
             color: var(--muted);
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .exception-class,
+        .exception .meta {
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .transaction::before {
@@ -790,6 +799,7 @@
 
         .transaction-group {
             position: relative;
+            min-width: 0;
             padding: .9rem;
             background: var(--surface);
             border: 1px solid var(--line-strong);
