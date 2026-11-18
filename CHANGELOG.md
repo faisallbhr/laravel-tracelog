@@ -4,6 +4,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-18
+
 ### Fixed
 
 - Count only Eloquent model changes in trace summary badges.
@@ -99,7 +101,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.0...v1.1.1
