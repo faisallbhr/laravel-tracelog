@@ -168,7 +168,7 @@
         const summary_main = element('span', undefined, 'trace-summary-main');
         const summary_top = element('span', undefined, 'trace-summary-top');
         summary_top.append(element('span', trace.trace_id, 'trace-id'));
-        summary_top.append(element('span', String(trace.event_count) + ' events', 'trace-count'));
+        summary_top.append(element('span', String(trace.event_count) + ' records', 'trace-count'));
         summary_main.append(summary_top);
         const model_names = trace.models.map((model) => model.split('\\').pop()).slice(0, 2).join(', ');
         const model_suffix = trace.models.length > 2 ? ' +' + (trace.models.length - 2) : '';
