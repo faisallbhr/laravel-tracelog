@@ -85,7 +85,8 @@ class TraceLogViewerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('total', 1)
             ->assertJsonPath('traces.0.trace_id', 'aaaabbbb')
-            ->assertJsonPath('traces.0.event_count', 2);
+            ->assertJsonPath('traces.0.event_count', 2)
+            ->assertJsonPath('traces.0.model_event_count', 2);
 
         $this->getJson('/tracelog/api/traces/aaaabbbb?date=2026-11-11')
             ->assertOk()
@@ -138,7 +139,7 @@ class TraceLogViewerTest extends TestCase
         $script = file_get_contents(dirname(__DIR__).'/resources/js/viewer.js');
         $this->assertStringContainsString('REPORTED EXCEPTION', $script);
         $this->assertStringContainsString('transaction-group', $script);
-        $this->assertStringContainsString("' records'", $script);
+        $this->assertStringContainsString("' model changes'", $script);
         $this->assertStringContainsString('group_transactions', $script);
         $this->assertStringNotContainsString('innerHTML', $script);
     }

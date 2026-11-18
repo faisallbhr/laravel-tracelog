@@ -64,6 +64,7 @@ class TraceReaderTest extends TestCase
         $trace = $this->reader()->traceForDate('2026-11-11', 'aaaabbbb');
 
         $this->assertSame(2, $trace['event_count']);
+        $this->assertSame(2, $trace['model_event_count']);
         $this->assertSame(['Order', 'Stock'], array_column($trace['events'], 'model'));
         $this->assertNull($this->reader()->traceForDate('2026-11-10', 'aaaabbbb'));
     }
@@ -83,6 +84,7 @@ class TraceReaderTest extends TestCase
         $this->assertSame(['checkout', 'inventory'], $result['traces'][0]['tags']);
         $this->assertSame(['Order', 'Stock'], $result['traces'][0]['models']);
         $this->assertSame(2, $result['traces'][0]['event_count']);
+        $this->assertSame(2, $result['traces'][0]['model_event_count']);
     }
 
     public function test_trace_keeps_event_order_across_parts_but_not_days(): void

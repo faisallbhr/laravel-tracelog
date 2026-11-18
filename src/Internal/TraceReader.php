@@ -478,6 +478,7 @@ final class TraceReader
             'started_at' => null,
             'ended_at' => null,
             'event_count' => 0,
+            'model_event_count' => 0,
             'tags' => [],
             'models' => [],
             'files' => [],
@@ -494,6 +495,9 @@ final class TraceReader
         }
 
         $summary['event_count']++;
+        if (isset($event['model'])) {
+            $summary['model_event_count']++;
+        }
         $timestamp = new DateTimeImmutable($event['timestamp']);
 
         if ($summary['_earliest_at'] === null || $timestamp < $summary['_earliest_at']) {

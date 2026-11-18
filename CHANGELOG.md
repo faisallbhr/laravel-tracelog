@@ -4,6 +4,11 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Count only Eloquent model changes in trace summary badges.
+- Keep checkpoints, exceptions, and transaction lifecycle records out of the model-change count.
+
 ## [1.3.0] - 2026-11-18
 
 ### Added
