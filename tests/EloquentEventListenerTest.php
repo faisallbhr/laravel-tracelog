@@ -416,6 +416,28 @@ class EloquentEventListenerTest extends TestCase
         $this->assertSame(['name', 'status'], array_keys($context['changes']));
     }
 
+    public function test_model_filters_compose_with_event_and_attribute_filters(): void
+    {
+        $included = TraceTestModel::create(['name' => 'Before', 'status' => 'pending']);
+        $excluded = OtherTraceTestModel::create(['name' => 'Before', 'status' => 'pending']);
+
+        TraceLog::watch(
+            models: [TraceTestModel::class, OtherTraceTestModel::class],
+            except: [OtherTraceTestModel::class],
+        )
+            ->only(['status'])
+            ->events([ModelEvent::Updated]);
+
+        $excluded->update(['status' => 'paid']);
+        $this->assertFileDoesNotExist($this->log_path);
+
+        $included->update(['name' => 'After', 'status' => 'paid']);
+        $context = $this->readLogContext();
+
+        $this->assertSame(TraceTestModel::class, $context['model']);
+        $this->assertSame(['status'], array_keys($context['changes']));
+    }
+
     public function test_tags_survive_model_specific_filter_precedence(): void
     {
         $model = TraceTestModel::create(['name' => 'Before', 'status' => 'pending']);

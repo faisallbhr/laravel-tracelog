@@ -4,6 +4,10 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add model class inclusion and exclusion through `TraceLog::watch()` arguments.
+
 ### Fixed
 
 - Log persisted database values for attributes updated with raw SQL expressions.

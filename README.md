@@ -94,6 +94,37 @@ TraceLog::watch($order);
 When watching a specific model instance, it must already be persisted and have
 a record key.
 
+### Filter models
+
+Pass multiple model classes through `models` or exclude classes through
+`except`. Exclusion takes precedence within the same watch configuration:
+
+```php
+use App\Models\Order;
+use App\Models\OrderDetail;
+use App\Models\User;
+
+TraceLog::watch(
+    models: [Order::class, OrderDetail::class, User::class],
+    except: [User::class],
+);
+```
+
+Omit `models` to watch all model classes except those excluded:
+
+```php
+TraceLog::watch(except: [User::class]);
+```
+
+An explicit empty `models: []` watches no model classes, while an empty
+`except: []` excludes nothing. Duplicate classes are removed. Matching uses the
+exact model class, consistent with a single-class watch.
+
+Record, class, and global watches keep their existing precedence. When a more
+specific watch excludes a model, TraceLog falls back to the next eligible
+independent watch. These filters do not disable models using the `Traceable`
+trait.
+
 ### Filter attributes
 
 Use `only()` to allow selected attributes and `except()` to remove attributes.
@@ -268,6 +299,7 @@ TraceLog::stop();
 The supported public API consists of:
 
 - `TraceLog::watch()`, `TraceLog::stop()`, and `TraceLog::isWatching()`
+- `TraceLog::watch(models: ..., except: ...)` for model class inclusion and exclusion
 - `only()`, `except()`, `events()`, `sensitive()`, and `tags()` on a watch configuration
 - `checkpoint()` for explicit trace-level business milestones
 - the `ModelEvent` enum

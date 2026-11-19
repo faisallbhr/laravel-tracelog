@@ -18,18 +18,22 @@ final class WatchRules
     /** @var list<string> */
     private array $except = [];
 
+    /** @var list<class-string> */
+    private array $except_models = [];
+
     /** @var list<ModelEvent>|null */
     private ?array $events = null;
 
     /** @var list<string> */
     private array $sensitive = [];
 
-    /** @return array{only: list<string>|null, except: list<string>, events: list<string>|null, sensitive: list<string>} */
+    /** @return array{only: list<string>|null, except: list<string>, except_models: list<class-string>, events: list<string>|null, sensitive: list<string>} */
     public function snapshot(): array
     {
         return [
             'only' => $this->only,
             'except' => $this->except,
+            'except_models' => $this->except_models,
             'events' => $this->events === null
                 ? null
                 : array_map(static fn (ModelEvent $event): string => $event->value, $this->events),
@@ -42,6 +46,7 @@ final class WatchRules
     {
         $this->only = $snapshot['only'] ?? null;
         $this->except = $snapshot['except'] ?? [];
+        $this->except_models = $snapshot['except_models'] ?? [];
         $this->events = isset($snapshot['events'])
             ? array_map(static fn (string $event): ModelEvent => ModelEvent::from($event), $snapshot['events'])
             : null;
@@ -60,6 +65,12 @@ final class WatchRules
         $this->except = $attributes;
     }
 
+    /** @param list<class-string> $models */
+    public function excludeModelClasses(array $models): void
+    {
+        $this->except_models = $models;
+    }
+
     /** @param list<ModelEvent> $events */
     public function events(array $events): void
     {
@@ -75,6 +86,12 @@ final class WatchRules
     public function includes(ModelEvent $event): bool
     {
         return $this->events === null || in_array($event, $this->events, true);
+    }
+
+    /** @param class-string $model */
+    public function includesModel(string $model): bool
+    {
+        return ! in_array($model, $this->except_models, true);
     }
 
     /**

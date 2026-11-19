@@ -20,24 +20,44 @@ final class WatchRegistry
     /** @var array<class-string<Model>, array<string, array<string, WatchRules>>> */
     private array $watched_records = [];
 
-    public function watchAll(): WatchRules
+    /** @param list<class-string<Model>> $except */
+    public function watchAll(array $except = []): WatchRules
     {
-        return $this->watch_all = $this->newRules();
+        $this->watch_all = $this->newRules();
+        $this->watch_all->excludeModelClasses($except);
+
+        return $this->watch_all;
     }
 
-    /** @param class-string<Model> $model */
-    public function watchClass(string $model): WatchRules
+    /**
+     * @param  list<class-string<Model>>  $models
+     * @param  list<class-string<Model>>  $except
+     */
+    public function watchClasses(array $models, array $except = []): WatchRules
     {
-        return $this->watched_classes[$model] = $this->newRules();
+        $rules = $this->newRules();
+        $rules->excludeModelClasses($except);
+
+        foreach ($models as $model) {
+            $this->watched_classes[$model] = $rules;
+        }
+
+        return $rules;
     }
 
-    public function watchRecord(Model $model): WatchRules
+    /** @param list<class-string<Model>> $except */
+    public function watchRecord(Model $model, array $except = []): WatchRules
     {
-        return $this->watched_records[$model::class][
+        $rules = $this->newRules();
+        $rules->excludeModelClasses($except);
+
+        $this->watched_records[$model::class][
             $model->getConnectionName() ?? ''
         ][
             (string) $model->getKey()
-        ] = $this->newRules();
+        ] = $rules;
+
+        return $rules;
     }
 
     public function newRules(): WatchRules
@@ -107,9 +127,19 @@ final class WatchRegistry
 
     public function rulesFor(Model $model): ?WatchRules
     {
-        return $this->watched_records[$model::class][$model->getConnectionName() ?? ''][(string) $model->getKey()]
-            ?? $this->watched_classes[$model::class]
-            ?? $this->watch_all;
+        $rules = [
+            $this->watched_records[$model::class][$model->getConnectionName() ?? ''][(string) $model->getKey()] ?? null,
+            $this->watched_classes[$model::class] ?? null,
+            $this->watch_all,
+        ];
+
+        foreach ($rules as $candidate) {
+            if ($candidate?->includesModel($model::class)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     public function hasActiveWatch(): bool

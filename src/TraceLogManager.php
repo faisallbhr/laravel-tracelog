@@ -24,33 +24,39 @@ class TraceLogManager
     ) {}
 
     /**
-     * Watch every model, all records of a model class, or one persisted record.
+     * Watch all models, selected model classes, or one persisted record,
+     * optionally excluding model classes.
      *
      * Calling this method without an argument watches every Eloquent model.
      *
-     * @param  Model|class-string<Model>|null  $model
+     * @param  Model|class-string<Model>|list<class-string<Model>>|null  $models
+     * @param  list<class-string<Model>>  $except
      *
      * @throws InvalidArgumentException When the class is not an Eloquent model or the model is unsaved.
      */
-    public function watch(Model|string|null $model = null): WatchConfiguration
+    public function watch(Model|string|array|null $models = null, array $except = []): WatchConfiguration
     {
-        if ($model === null) {
-            return new WatchConfiguration($this->registry->watchAll(), $this->context);
+        $except = $this->validateModelClasses($except, 'exclusions');
+
+        if ($models === null) {
+            return new WatchConfiguration($this->registry->watchAll($except), $this->context);
         }
 
-        if (is_string($model) && ! is_a($model, Model::class, true)) {
-            throw new InvalidArgumentException('Expected an Eloquent model class name, got: '.$model);
+        if (is_string($models)) {
+            $models = [$models];
         }
 
-        if (is_string($model)) {
-            return new WatchConfiguration($this->registry->watchClass($model), $this->context);
+        if (is_array($models)) {
+            $models = $this->validateModelClasses($models, 'models');
+
+            return new WatchConfiguration($this->registry->watchClasses($models, $except), $this->context);
         }
 
-        if ($model->getKey() === null) {
+        if ($models->getKey() === null) {
             throw new InvalidArgumentException('Cannot watch an unsaved Eloquent model.');
         }
 
-        return new WatchConfiguration($this->registry->watchRecord($model), $this->context);
+        return new WatchConfiguration($this->registry->watchRecord($models, $except), $this->context);
     }
 
     /**
@@ -119,5 +125,24 @@ class TraceLogManager
         $this->transactions->reset();
         $this->registry->stop();
         $this->context->reset();
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $models
+     * @return list<class-string<Model>>
+     */
+    private function validateModelClasses(array $models, string $argument): array
+    {
+        if (! array_is_list($models)) {
+            throw new InvalidArgumentException("TraceLog watch {$argument} must be a list of Eloquent model class names.");
+        }
+
+        foreach ($models as $model) {
+            if (! is_string($model) || ! is_a($model, Model::class, true)) {
+                throw new InvalidArgumentException("TraceLog watch {$argument} must contain only Eloquent model class names.");
+            }
+        }
+
+        return array_values(array_unique($models));
     }
 }
