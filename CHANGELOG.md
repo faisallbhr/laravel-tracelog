@@ -4,10 +4,16 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-19
+
 ### Added
 
 - Add model class inclusion and exclusion through `TraceLog::watch()` arguments.
 - Add floating navigation to return to the current trace or top of the trace list.
+
+### Changed
+
+- Rename the `TraceLog::watch()` named argument from `model` to `models`; positional calls remain compatible.
 
 ### Fixed
 
@@ -110,7 +116,8 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 - Added the initial TraceLog implementation and MIT license.
 
-[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/faisallbhr/laravel-tracelog/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.1...v2.0.0
 [1.3.1]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/faisallbhr/laravel-tracelog/compare/v1.1.1...v1.2.0
