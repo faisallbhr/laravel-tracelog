@@ -4,6 +4,10 @@ All notable changes to Laravel TraceLog are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Log persisted database values for attributes updated with raw SQL expressions.
+
 ## [1.3.1] - 2026-11-18
 
 ### Fixed

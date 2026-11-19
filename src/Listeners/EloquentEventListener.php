@@ -2,6 +2,7 @@
 
 namespace TraceLog\Listeners;
 
+use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Model;
 use TraceLog\Concerns\Traceable;
 use TraceLog\Enums\ModelEvent;
@@ -83,7 +84,7 @@ class EloquentEventListener
             ModelEvent::Created => $this->diff([], $model->getAttributes()),
             ModelEvent::Updated, ModelEvent::Restored => $this->diff(
                 array_intersect_key($this->previous($event, $model), $model->getChanges()),
-                $model->getChanges()
+                $this->resolveExpressions($model, $model->getChanges())
             ),
             ModelEvent::Deleted, ModelEvent::ForceDeleted => [],
         };
@@ -139,6 +140,36 @@ class EloquentEventListener
                 'old' => $old_value,
                 'new' => $new_value,
             ];
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Replace raw SQL expressions with the values persisted by the database.
+     *
+     * @param  array<string, mixed>  $changes
+     * @return array<string, mixed>
+     */
+    private function resolveExpressions(Model $model, array $changes): array
+    {
+        $attributes = array_keys(array_filter(
+            $changes,
+            fn (mixed $value): bool => $value instanceof Expression
+        ));
+
+        if ($attributes === []) {
+            return $changes;
+        }
+
+        $fresh = $model->newQueryWithoutScopes()->whereKey($model->getKey())->first($attributes);
+
+        if ($fresh === null) {
+            return $changes;
+        }
+
+        foreach ($attributes as $attribute) {
+            $changes[$attribute] = $fresh->getRawOriginal($attribute);
         }
 
         return $changes;

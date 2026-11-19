@@ -6,6 +6,7 @@ use DateTimeZone;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Laravel\SerializableClosure\SerializableClosure;
 use TraceLog\Concerns\Traceable;
@@ -299,6 +300,27 @@ class EloquentEventListenerTest extends TestCase
             'old' => 'Before',
             'new' => 'After',
         ], $context['changes']['name']);
+    }
+
+    public function test_updated_event_resolves_raw_expression_value(): void
+    {
+        $model = TraceTestModel::create([
+            'name' => 'Before',
+            'total' => 1,
+        ]);
+
+        TraceLog::watch();
+
+        $model->update([
+            'total' => DB::raw('total + 2'),
+        ]);
+
+        $context = $this->readLogContext();
+
+        $this->assertSame([
+            'old' => 1,
+            'new' => 3,
+        ], $context['changes']['total']);
     }
 
     public function test_deleted_event(): void
