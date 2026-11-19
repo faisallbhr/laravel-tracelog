@@ -49,6 +49,8 @@ class TraceLogViewerTest extends TestCase
             ->assertSee('TraceLog Viewer')
             ->assertSee('/tracelog/assets/viewer.css')
             ->assertSee('/tracelog/assets/viewer.js')
+            ->assertSee('id="trace-scroll-top"', false)
+            ->assertSee('id="list-scroll-top"', false)
             ->assertSee('data-page-size="1"', false);
         $this->get('/tracelog/assets/viewer.css')->assertOk()->assertHeader('Content-Type', 'text/css; charset=UTF-8');
         $this->get('/tracelog/assets/viewer.js')->assertOk()->assertHeader('Content-Type', 'application/javascript; charset=UTF-8');
@@ -142,6 +144,8 @@ class TraceLogViewerTest extends TestCase
         $this->assertStringContainsString("' model changes'", $script);
         $this->assertStringContainsString('list.replaceChildren(loading_overlay)', $script);
         $this->assertStringContainsString('group_transactions', $script);
+        $this->assertStringContainsString('current_trace', $script);
+        $this->assertStringContainsString('list.scrollTo({ top: 0', $script);
         $this->assertStringNotContainsString('innerHTML', $script);
     }
 

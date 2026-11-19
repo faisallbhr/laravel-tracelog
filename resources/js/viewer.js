@@ -5,6 +5,9 @@
     const tag_input = document.getElementById('trace-tag');
     const list = document.getElementById('trace-list');
     const pagination = document.getElementById('trace-pagination');
+    const scroll_actions = document.getElementById('scroll-actions');
+    const trace_scroll_top = document.getElementById('trace-scroll-top');
+    const list_scroll_top = document.getElementById('list-scroll-top');
     const shared_query = new URLSearchParams(window.location.search);
     const shared_date = shared_query.get('date');
     const shared_trace_id = shared_query.get('trace_id');
@@ -17,6 +20,7 @@
         : 25;
     let page = 1;
     let selected_date = '';
+    const scroll_behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
     document.addEventListener('click', (event) => {
         if (settings.open && !settings.contains(event.target)) settings.open = false;
@@ -64,6 +68,20 @@
         return node;
     };
     const value = (item) => JSON.stringify(item, null, 2);
+    const current_trace = () => {
+        const list_top = list.getBoundingClientRect().top;
+
+        return [...list.querySelectorAll('.trace[open]')].find((trace) => {
+            const bounds = trace.getBoundingClientRect();
+
+            return bounds.top < list_top && bounds.bottom > list_top;
+        });
+    };
+    const update_scroll_actions = () => {
+        const trace = current_trace();
+        trace_scroll_top.hidden = !trace;
+        scroll_actions.hidden = list.scrollTop < 160 && !trace;
+    };
     const format_date = (date) => {
         const parsed_date = new Date(`${date}T00:00:00`);
 
@@ -141,6 +159,7 @@
         loading_overlay.append(loading_spinner, text('Loading traces…'));
         list.replaceChildren(loading_overlay);
         list.scrollTop = 0;
+        update_scroll_actions();
         list.setAttribute('aria-busy', 'true');
         try {
             const payload = await get_json(`${root.dataset.tracesUrl}?${params}`);
@@ -212,7 +231,10 @@
         meta.append(element('span', `${format_datetime(trace.started_at)} → ${format_datetime(trace.ended_at)}`));
         meta.append(element('span', `Models: ${trace.models.join(', ') || 'none'}`));
         details.append(meta);
-        details.addEventListener('toggle', () => details.open && load_detail(details, trace.trace_id));
+        details.addEventListener('toggle', () => {
+            if (details.open) load_detail(details, trace.trace_id);
+            update_scroll_actions();
+        });
         return details;
     }
 
@@ -467,6 +489,12 @@
     }
 
     document.getElementById('trace-refresh').onclick = () => { page = 1; load_traces(); };
+    list.addEventListener('scroll', update_scroll_actions, { passive: true });
+    trace_scroll_top.onclick = () => {
+        const trace = current_trace();
+        if (trace) trace.scrollIntoView({ behavior: scroll_behavior, block: 'start' });
+    };
+    list_scroll_top.onclick = () => list.scrollTo({ top: 0, behavior: scroll_behavior });
     tag_input.onkeydown = (event) => {
         if (event.key === 'Enter') { page = 1; load_traces(); }
     };

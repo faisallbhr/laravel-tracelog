@@ -7,6 +7,7 @@ All notable changes to Laravel TraceLog are documented in this file.
 ### Added
 
 - Add model class inclusion and exclusion through `TraceLog::watch()` arguments.
+- Add floating navigation to return to the current trace or top of the trace list.
 
 ### Fixed
 

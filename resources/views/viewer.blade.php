@@ -56,6 +56,18 @@
             </section>
 
             <section id="trace-list" class="trace-list" aria-label="Trace results" aria-live="polite"></section>
+            <nav id="scroll-actions" class="scroll-actions" aria-label="Scroll navigation" hidden>
+                <button id="list-scroll-top" type="button" aria-label="Scroll to top of trace list" title="List top">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 15 6-6 6 6M6 9l6-6 6 6"/>
+                    </svg>
+                </button>
+                <button id="trace-scroll-top" type="button" aria-label="Scroll to top of current trace" title="Trace top" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 15 6-6 6 6"/>
+                    </svg>
+                </button>
+            </nav>
             <nav id="trace-pagination" class="pagination" aria-label="Trace pages"></nav>
         </section>
     </div>
